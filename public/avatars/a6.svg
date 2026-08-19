@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200" role="img" aria-label="Teal avatar">
+  <rect width="200" height="200" fill="#14b8a6" />
+  <g fill="#06302c">
+    <rect x="48" y="70" width="46" height="30" rx="10" />
+    <rect x="106" y="70" width="46" height="30" rx="10" />
+    <rect x="94" y="80" width="12" height="8" />
+  </g>
+  <path d="M74 126q26 20 52 0" fill="none" stroke="#06302c" stroke-width="11" stroke-linecap="round" />
+</svg>

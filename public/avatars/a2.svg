@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200" role="img" aria-label="Blue avatar">
+  <rect width="200" height="200" fill="#2d6cdf" />
+  <g fill="#12203a">
+    <ellipse cx="73" cy="84" rx="9" ry="13" />
+    <ellipse cx="127" cy="84" rx="9" ry="13" />
+  </g>
+  <path d="M76 126q24 18 48 0" fill="none" stroke="#12203a" stroke-width="11" stroke-linecap="round" />
+</svg>

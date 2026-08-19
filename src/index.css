@@ -1,0 +1,30 @@
+@import 'tailwindcss';
+
+@theme {
+  /* Netflix-ish surface palette. Referenced as bg-ink, bg-ink-soft, text-brand, ... */
+  --color-ink: #141414;
+  --color-ink-soft: #181818;
+  --color-ink-raised: #2a2a2a;
+  --color-brand: #e50914;
+  --color-brand-hover: #f6121d;
+
+  --font-sans:
+    'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+}
+
+html {
+  background-color: var(--color-ink);
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Native <dialog> backdrop — used by AddProfileDialog. */
+dialog::backdrop {
+  background-color: rgb(0 0 0 / 0.7);
+}

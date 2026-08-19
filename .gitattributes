@@ -1,0 +1,11 @@
+# Normalize to LF in the repo so Windows/macOS/Linux clones stay diff-clean
+# (CI runs on ubuntu-latest).
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary

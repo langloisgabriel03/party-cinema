@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200" role="img" aria-label="Purple avatar">
+  <rect width="200" height="200" fill="#8b5cf6" />
+  <g fill="none" stroke="#2b1065" stroke-width="11" stroke-linecap="round">
+    <path d="M60 86q13-13 26 0" />
+    <path d="M114 86q13-13 26 0" />
+    <path d="M78 126h44" />
+  </g>
+</svg>
