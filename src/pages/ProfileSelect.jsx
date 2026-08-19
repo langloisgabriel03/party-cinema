@@ -8,7 +8,8 @@ import { useAppStore } from '@/store/useAppStore'
 export default function ProfileSelect() {
   const navigate = useNavigate()
   const profiles = useAppStore((state) => state.profiles)
-  const addProfile = useAppStore((state) => state.addProfile)
+  const loading = useAppStore((state) => state.profilesLoading)
+  const error = useAppStore((state) => state.profilesError)
   const selectProfile = useAppStore((state) => state.selectProfile)
   const [dialogOpen, setDialogOpen] = useState(false)
 
@@ -35,19 +36,25 @@ export default function ProfileSelect() {
       <main className="flex flex-1 flex-col items-center justify-center gap-10 px-6 pb-20">
         <h1 className="text-center text-4xl font-light sm:text-6xl">Who&rsquo;s watching?</h1>
 
-        <div className="flex max-w-4xl flex-wrap items-start justify-center gap-6 sm:gap-10">
-          {profiles.map((profile) => (
-            <ProfileCard key={profile.id} profile={profile} onSelect={handleSelect} />
-          ))}
-          {profiles.length === 0 && <AddProfileTile onClick={() => setDialogOpen(true)} />}
-        </div>
+        {loading ? (
+          <p className="text-neutral-500">Loading profiles…</p>
+        ) : (
+          <div className="flex max-w-4xl flex-wrap items-start justify-center gap-6 sm:gap-10">
+            {profiles.map((profile) => (
+              <ProfileCard key={profile.id} profile={profile} onSelect={handleSelect} />
+            ))}
+            {profiles.length === 0 && <AddProfileTile onClick={() => setDialogOpen(true)} />}
+          </div>
+        )}
+
+        {error && (
+          <p className="max-w-md text-center text-sm text-red-400">
+            Couldn&rsquo;t reach the shared profile list: {error}
+          </p>
+        )}
       </main>
 
-      <AddProfileDialog
-        open={dialogOpen}
-        onClose={() => setDialogOpen(false)}
-        onSave={(name, avatar) => addProfile(name, avatar)}
-      />
+      <AddProfileDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
     </div>
   )
 }

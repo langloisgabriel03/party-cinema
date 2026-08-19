@@ -1,34 +1,87 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
+import { supabase, supabaseConfigured } from '@/lib/supabaseClient'
+
 /**
- * The single app store. Today it only holds profiles; the watchlist (`movies`) and the
- * scheduled nights (`nights`) belong here too when we build them.
+ * `profiles` is shared across everyone via Supabase (see README) -- this is the one store that
+ * grows later when the watchlist (`movies`) and scheduled nights (`nights`) are added, likely as
+ * their own tables + slices here.
  *
- * Persisted to localStorage, which means each browser keeps its OWN copy — friends will not
- * see each other's data. Swapping this file for a real backend (Supabase) is the fix.
+ * `currentProfileId` stays in localStorage: which profile *this browser* is using is a per-device
+ * choice, same as Netflix, not shared data -- so it's the only thing persisted.
  */
-const createId = () =>
-  globalThis.crypto?.randomUUID?.() ??
-  `p_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
+let subscribed = false
 
 export const useAppStore = create(
   persist(
     (set) => ({
       profiles: [],
+      profilesLoading: true,
+      profilesError: null,
       currentProfileId: null,
 
-      addProfile: (name, avatar) => {
-        const profile = { id: createId(), name: name.trim(), avatar }
-        set((state) => ({ profiles: [...state.profiles, profile] }))
-        return profile
+      // Fetches the shared profile list once and keeps it live via realtime inserts.
+      // Guarded so React StrictMode's double-effect in dev doesn't double-subscribe.
+      initProfiles: async () => {
+        if (subscribed) return
+        subscribed = true
+
+        if (!supabaseConfigured) {
+          set({ profilesLoading: false, profilesError: 'Supabase is not configured yet.' })
+          return
+        }
+
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, name, avatar')
+          .order('created_at', { ascending: true })
+
+        set({
+          profiles: data ?? [],
+          profilesLoading: false,
+          profilesError: error ? error.message : null,
+        })
+
+        supabase
+          .channel('profiles-changes')
+          .on(
+            'postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'profiles' },
+            ({ new: row }) =>
+              set((state) =>
+                state.profiles.some((profile) => profile.id === row.id)
+                  ? state
+                  : { profiles: [...state.profiles, row] }
+              )
+          )
+          .subscribe()
       },
 
-      removeProfile: (id) =>
-        set((state) => ({
-          profiles: state.profiles.filter((profile) => profile.id !== id),
-          currentProfileId: state.currentProfileId === id ? null : state.currentProfileId,
-        })),
+      addProfile: async (name, avatar) => {
+        if (!supabaseConfigured) {
+          set({ profilesError: 'Supabase is not configured yet.' })
+          return null
+        }
+
+        const { data, error } = await supabase
+          .from('profiles')
+          .insert({ name: name.trim(), avatar })
+          .select('id, name, avatar')
+          .single()
+
+        if (error) {
+          set({ profilesError: error.message })
+          return null
+        }
+
+        set((state) =>
+          state.profiles.some((profile) => profile.id === data.id)
+            ? state
+            : { profiles: [...state.profiles, data] }
+        )
+        return data
+      },
 
       selectProfile: (id) => set({ currentProfileId: id }),
 
@@ -37,7 +90,8 @@ export const useAppStore = create(
     }),
     {
       name: 'party-cinema',
-      version: 1,
+      version: 2,
+      partialize: (state) => ({ currentProfileId: state.currentProfileId }),
     }
   )
 )

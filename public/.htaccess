@@ -1,0 +1,14 @@
+# NOTE: this project is deployed on GitHub Pages, which serves static files directly and does
+# not run Apache -- this file has no effect there. It's kept here only in case this ever moves
+# to Apache-based hosting. On GitHub Pages, indexing is blocked instead by robots.txt and the
+# <meta name="robots"> tag in index.html.
+
+<IfModule mod_headers.c>
+  Header set X-Robots-Tag "noindex, nofollow, noarchive"
+</IfModule>
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTP_USER_AGENT} (bot|crawl|spider|slurp|bingpreview|facebookexternalhit) [NC]
+  RewriteRule .* - [F,L]
+</IfModule>

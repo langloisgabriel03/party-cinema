@@ -1,12 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { AVATARS, DEFAULT_AVATAR_ID, randomAvatarId } from '@/data/avatars'
+import { useAppStore } from '@/store/useAppStore'
 
-export default function AddProfileDialog({ open, onClose, onSave }) {
+export default function AddProfileDialog({ open, onClose }) {
+  const addProfile = useAppStore((state) => state.addProfile)
   const dialogRef = useRef(null)
   const inputRef = useRef(null)
   const [name, setName] = useState('')
   const [avatar, setAvatar] = useState(DEFAULT_AVATAR_ID)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     const dialog = dialogRef.current
@@ -16,6 +20,7 @@ export default function AddProfileDialog({ open, onClose, onSave }) {
       // Reset on every open so the form never shows the previous entry.
       setName('')
       setAvatar(randomAvatarId())
+      setError(null)
       dialog.showModal()
       inputRef.current?.focus()
     } else if (!open && dialog.open) {
@@ -25,11 +30,20 @@ export default function AddProfileDialog({ open, onClose, onSave }) {
 
   const trimmedName = name.trim()
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault()
-    if (!trimmedName) return
-    onSave(trimmedName, avatar)
-    onClose()
+    if (!trimmedName || saving) return
+
+    setSaving(true)
+    setError(null)
+    const profile = await addProfile(trimmedName, avatar)
+    setSaving(false)
+
+    if (profile) {
+      onClose()
+    } else {
+      setError('Could not save that profile. Check your connection and try again.')
+    }
   }
 
   return (
@@ -80,6 +94,8 @@ export default function AddProfileDialog({ open, onClose, onSave }) {
           </div>
         </fieldset>
 
+        {error && <p className="text-sm text-red-400">{error}</p>}
+
         <div className="flex justify-end gap-3">
           <button
             type="button"
@@ -90,10 +106,10 @@ export default function AddProfileDialog({ open, onClose, onSave }) {
           </button>
           <button
             type="submit"
-            disabled={!trimmedName}
+            disabled={!trimmedName || saving}
             className="cursor-pointer rounded bg-brand px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-neutral-700 disabled:text-neutral-400"
           >
-            Save
+            {saving ? 'Saving…' : 'Save'}
           </button>
         </div>
       </form>

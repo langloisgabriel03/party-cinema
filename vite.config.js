@@ -27,8 +27,8 @@ function githubPagesSpaFallback() {
 }
 
 export default defineConfig({
-  // Project site lives at https://langloisgabriel03.github.io/party-cinema/
-  base: '/party-cinema/',
+  // Custom domain (see public/CNAME) serves from the root, not a /repo-name/ subpath.
+  base: '/',
   plugins: [react(), tailwindcss(), githubPagesSpaFallback()],
   resolve: {
     alias: {
