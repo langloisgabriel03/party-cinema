@@ -32,13 +32,3 @@ export function formatNightDate(iso) {
     day: 'numeric',
   })
 }
-
-/** "8:00 PM" from a Postgres "HH:MM:SS" / "HH:MM" time string, or null if untimed. */
-export function formatTime(time) {
-  if (!time) return null
-  const [h, m] = time.split(':').map(Number)
-  return new Date(2000, 0, 1, h, m).toLocaleTimeString(undefined, {
-    hour: 'numeric',
-    minute: '2-digit',
-  })
-}

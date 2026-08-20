@@ -34,93 +34,103 @@ function FilmPicker({ watchlistEntries, onPick }) {
   )
 }
 
-function NightRow({ night, watchlistEntries, moviesById }) {
+function NightRow({ night, movieIds, watchlistEntries, moviesById, profileId }) {
   const updateNight = usePlanStore((state) => state.updateNight)
   const deleteNight = usePlanStore((state) => state.deleteNight)
+  const addMovieToNight = usePlanStore((state) => state.addMovieToNight)
+  const removeMovieFromNight = usePlanStore((state) => state.removeMovieFromNight)
   const [pickerOpen, setPickerOpen] = useState(false)
-  const movie = night.movie_id ? moviesById.get(night.movie_id) : null
+
+  // Already-attached films don't need to show again in the "add another" picker.
+  const pickableEntries = watchlistEntries.filter((entry) => !movieIds.includes(entry.movieId))
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-neutral-800 p-3">
+    <div className="flex flex-col gap-3 rounded-lg border border-neutral-800 p-3">
       <div className="flex items-center justify-between gap-2">
         <input
-          type="time"
-          value={night.start_time ? night.start_time.slice(0, 5) : ''}
-          onChange={(e) => updateNight(night.id, { start_time: e.target.value || null })}
-          className="rounded border border-neutral-700 bg-ink-raised px-2 py-1 text-sm text-white outline-none focus:border-neutral-400"
+          type="text"
+          value={night.note ?? ''}
+          onChange={(e) => updateNight(night.id, { note: e.target.value || null })}
+          placeholder="Note (optional)"
+          className="min-w-0 flex-1 rounded border border-neutral-700 bg-ink-raised px-2 py-1.5 text-sm text-white outline-none placeholder:text-neutral-500 focus:border-neutral-400"
         />
         <button
           type="button"
           onClick={() => deleteNight(night.id)}
-          className="cursor-pointer text-xs text-red-400 hover:text-red-300"
+          className="shrink-0 cursor-pointer text-xs text-red-400 hover:text-red-300"
         >
           Cancel night
         </button>
       </div>
 
-      {night.movie_id ? (
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-white">{movie ? movie.title : '…'}</span>
-          <button
-            type="button"
-            onClick={() => setPickerOpen((open) => !open)}
-            className="cursor-pointer text-xs text-neutral-400 hover:text-white"
-          >
-            Change film
-          </button>
+      {movieIds.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {movieIds.map((movieId) => {
+            const movie = moviesById.get(movieId)
+            return (
+              <div key={movieId} className="relative w-16 shrink-0">
+                {movie?.poster ? (
+                  <img src={movie.poster} alt="" className="aspect-2/3 w-full rounded object-cover" />
+                ) : (
+                  <div className="flex aspect-2/3 w-full items-center justify-center rounded bg-ink-raised px-1 text-center text-[10px] text-neutral-500">
+                    {movie?.title ?? '…'}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => removeMovieFromNight(night.id, movieId)}
+                  aria-label={`Remove ${movie?.title ?? 'film'}`}
+                  className="absolute -top-1.5 -right-1.5 flex size-5 cursor-pointer items-center justify-center rounded-full bg-black/80 text-xs text-white hover:bg-red-500"
+                >
+                  ✕
+                </button>
+              </div>
+            )
+          })}
         </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setPickerOpen((open) => !open)}
-          className="cursor-pointer self-start text-sm text-brand hover:text-brand-hover"
-        >
-          + Pick a film from the watchlist
-        </button>
       )}
+
+      <button
+        type="button"
+        onClick={() => setPickerOpen((open) => !open)}
+        className="cursor-pointer self-start text-sm text-brand hover:text-brand-hover"
+      >
+        + Add a film from the watchlist
+      </button>
 
       {pickerOpen && (
         <FilmPicker
-          watchlistEntries={watchlistEntries}
+          watchlistEntries={pickableEntries}
           onPick={(movieId) => {
-            updateNight(night.id, { movie_id: movieId })
+            addMovieToNight(night.id, movieId, profileId)
             setPickerOpen(false)
           }}
         />
       )}
-
-      <input
-        type="text"
-        value={night.note ?? ''}
-        onChange={(e) => updateNight(night.id, { note: e.target.value || null })}
-        placeholder="Note (optional)"
-        className="rounded border border-neutral-700 bg-ink-raised px-2 py-1.5 text-sm text-white outline-none placeholder:text-neutral-500 focus:border-neutral-400"
-      />
     </div>
   )
 }
 
-export default function NightDialog({ open, onClose, iso, dateLabel, nights, watchlistEntries, moviesById }) {
+export default function NightDialog({
+  open,
+  onClose,
+  iso,
+  dateLabel,
+  nights,
+  watchlistEntries,
+  moviesById,
+  nightMoviesByNight,
+}) {
   const dialogRef = useRef(null)
   const profileId = useAppStore((state) => state.currentProfileId)
   const scheduleNight = usePlanStore((state) => state.scheduleNight)
-  const [newTime, setNewTime] = useState('')
 
   useEffect(() => {
     const dialog = dialogRef.current
     if (!dialog) return
-    if (open && !dialog.open) {
-      setNewTime('')
-      dialog.showModal()
-    } else if (!open && dialog.open) {
-      dialog.close()
-    }
+    if (open && !dialog.open) dialog.showModal()
+    else if (!open && dialog.open) dialog.close()
   }, [open])
-
-  const handleAdd = async () => {
-    await scheduleNight({ scheduledFor: iso, startTime: newTime, createdBy: profileId })
-    setNewTime('')
-  }
 
   return (
     <dialog
@@ -147,29 +157,25 @@ export default function NightDialog({ open, onClose, iso, dateLabel, nights, wat
           <NightRow
             key={night.id}
             night={night}
+            movieIds={nightMoviesByNight.get(night.id) ?? []}
             watchlistEntries={watchlistEntries}
             moviesById={moviesById}
+            profileId={profileId}
           />
         ))}
 
-        <div className="flex flex-col gap-2 border-t border-neutral-800 pt-4">
-          <span className="text-xs text-neutral-400">Add a movie night on this date</span>
-          <div className="flex items-center gap-2">
-            <input
-              type="time"
-              value={newTime}
-              onChange={(e) => setNewTime(e.target.value)}
-              className="rounded border border-neutral-700 bg-ink-raised px-2 py-1.5 text-sm text-white outline-none focus:border-neutral-400"
-            />
-            <button
-              type="button"
-              onClick={handleAdd}
-              className="flex-1 cursor-pointer rounded bg-brand py-1.5 text-sm font-semibold text-white transition-colors hover:bg-brand-hover"
-            >
-              + Add night
-            </button>
-          </div>
-        </div>
+        {/* Only one night per date -- once one exists above, there's nothing to "add"; use its
+            own "+ Add a film" control instead. Multiple films on one night are how you handle
+            "more than one movie in a day" now, not multiple nights on the same date. */}
+        {nights.length === 0 && (
+          <button
+            type="button"
+            onClick={() => scheduleNight({ scheduledFor: iso, createdBy: profileId })}
+            className="cursor-pointer rounded bg-brand py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-hover"
+          >
+            + Add movie night on this date
+          </button>
+        )}
       </div>
     </dialog>
   )

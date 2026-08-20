@@ -2,19 +2,7 @@ import { memo } from 'react'
 
 import WatchlistButton from '@/components/WatchlistButton'
 import filterSchema from '@/data/filterSchema.json'
-
-function scoreColor(score) {
-  if (score == null) return 'text-neutral-500'
-  if (score >= 70) return 'text-green-400'
-  if (score >= 40) return 'text-amber-400'
-  return 'text-red-400'
-}
-
-function formatCount(n) {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, '')}K`
-  return String(n)
-}
+import { formatCount, scoreColor } from '@/data/movieCatalog'
 
 function MovieCard({ movie }) {
   const listBadges = movie.lists.map((key) => filterSchema.list_labels[key]).filter(Boolean)

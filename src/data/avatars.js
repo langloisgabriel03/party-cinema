@@ -28,6 +28,8 @@ const PHOTO_AVATARS = {
   nichon: withBase('photos/nichon.jpg'),
   gaybes: withBase('photos/gaybes.jpg'),
   gorguie: withBase('photos/gorguie.jpg'),
+  alex: withBase('photos/alex.jpg'),
+  marie: withBase('photos/marie.jpg'),
 }
 
 export function avatarSrc(id) {

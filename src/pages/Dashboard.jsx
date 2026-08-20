@@ -7,7 +7,7 @@ import NightDialog from '@/components/NightDialog'
 import UpcomingNights from '@/components/UpcomingNights'
 import WatchlistCard from '@/components/WatchlistCard'
 import { avatarSrc } from '@/data/avatars'
-import { formatNightDate, formatTime, todayISO } from '@/data/dates'
+import { formatNightDate, todayISO } from '@/data/dates'
 import { groupWatchlist, nextUpcomingNight, referencedMovieIds, upcomingNights } from '@/data/plan'
 import { useAppStore, useCurrentProfile } from '@/store/useAppStore'
 import { useMovieCatalogStore } from '@/store/useMovieCatalogStore'
@@ -22,6 +22,8 @@ export default function Dashboard() {
 
   const watchlist = usePlanStore((state) => state.watchlist)
   const nights = usePlanStore((state) => state.nights)
+  const nightMovies = usePlanStore((state) => state.nightMovies)
+  const nightMoviesByNight = usePlanStore((state) => state.nightMoviesByNight)
   const planLoading = usePlanStore((state) => state.planLoading)
   const planError = usePlanStore((state) => state.planError)
   const initPlan = usePlanStore((state) => state.initPlan)
@@ -38,7 +40,7 @@ export default function Dashboard() {
 
   // Targeted backfill: only the movies the watchlist/nights actually reference (not the full
   // catalog) -- see useMovieCatalogStore's ensureMovies for why this beats an eager full fetch.
-  const ids = useMemo(() => referencedMovieIds(watchlist, nights), [watchlist, nights])
+  const ids = useMemo(() => referencedMovieIds(watchlist, nightMovies), [watchlist, nightMovies])
   useEffect(() => {
     if (ids.length) ensureMovies(ids)
   }, [ids, ensureMovies])
@@ -61,7 +63,9 @@ export default function Dashboard() {
   )
 
   const visibleEntries = watchlistExpanded ? entries : entries.slice(0, WATCHLIST_PREVIEW_COUNT)
-  const nextNightMovie = nextNight?.movie_id ? moviesById.get(nextNight.movie_id) : null
+  const nextNightMovieIds = nextNight ? (nightMoviesByNight.get(nextNight.id) ?? []) : []
+  const nextNightFirstMovie = nextNightMovieIds.length ? moviesById.get(nextNightMovieIds[0]) : null
+  const nextNightExtraCount = nextNightMovieIds.length - 1
 
   // The route guard redirects when there's no profile; this covers the render before it runs.
   if (!profile) return null
@@ -70,15 +74,20 @@ export default function Dashboard() {
     <div className="flex min-h-dvh flex-col bg-ink text-white">
       <AppHeader>
         <Link to="/movies" className="text-sm text-neutral-400 transition-colors hover:text-white">
-          + Add movies
+          Movies
         </Link>
-        <img src={avatarSrc(profile.avatar)} alt="" className="size-9 rounded" />
         <button
           type="button"
           onClick={signOut}
-          className="cursor-pointer text-sm text-neutral-400 transition-colors hover:text-white"
+          aria-label="Switch profile"
+          title="Switch profile"
+          className="cursor-pointer"
         >
-          Switch profile
+          <img
+            src={avatarSrc(profile.avatar)}
+            alt=""
+            className="size-12 rounded-full object-cover ring-2 ring-transparent transition-all hover:ring-white"
+          />
         </button>
       </AppHeader>
 
@@ -103,21 +112,22 @@ export default function Dashboard() {
                   onClick={() => setSelectedDate(nextNight.scheduled_for)}
                   className="flex cursor-pointer items-center gap-4 rounded-xl bg-ink-soft p-4 text-left hover:bg-ink-raised"
                 >
-                  {nextNightMovie?.poster && (
+                  {nextNightFirstMovie?.poster && (
                     <img
-                      src={nextNightMovie.poster}
+                      src={nextNightFirstMovie.poster}
                       alt=""
                       className="aspect-2/3 w-16 shrink-0 rounded object-cover"
                     />
                   )}
                   <div className="min-w-0">
                     <p className="text-xs tracking-wide text-neutral-400 uppercase">Next movie night</p>
-                    <p className="truncate text-lg font-semibold">
-                      {formatNightDate(nextNight.scheduled_for)}
-                      {nextNight.start_time ? ` · ${formatTime(nextNight.start_time)}` : ''}
-                    </p>
+                    <p className="truncate text-lg font-semibold">{formatNightDate(nextNight.scheduled_for)}</p>
                     <p className="truncate text-sm text-neutral-400">
-                      {nextNightMovie ? nextNightMovie.title : nextNight.movie_id ? '…' : 'Pick a film →'}
+                      {nextNightFirstMovie
+                        ? `${nextNightFirstMovie.title}${nextNightExtraCount > 0 ? ` +${nextNightExtraCount} more` : ''}`
+                        : nextNightMovieIds.length
+                          ? '…'
+                          : 'Pick a film →'}
                     </p>
                   </div>
                 </button>
@@ -138,7 +148,12 @@ export default function Dashboard() {
                 <h2 className="text-sm font-semibold tracking-wide text-neutral-400 uppercase">
                   Upcoming nights
                 </h2>
-                <UpcomingNights nights={upcoming} moviesById={moviesById} onSelect={setSelectedDate} />
+                <UpcomingNights
+                  nights={upcoming}
+                  moviesById={moviesById}
+                  nightMoviesByNight={nightMoviesByNight}
+                  onSelect={setSelectedDate}
+                />
               </section>
             </div>
 
@@ -189,6 +204,7 @@ export default function Dashboard() {
           nights={nightsOnSelectedDate}
           watchlistEntries={entries}
           moviesById={moviesById}
+          nightMoviesByNight={nightMoviesByNight}
         />
       )}
     </div>

@@ -1,4 +1,6 @@
-/** Shared top bar: brand mark left, page-specific actions right. Used by every page past ProfileSelect. */
+import { Link } from 'react-router-dom'
+
+/** Shared top bar: brand mark left (links to the dashboard), page-specific actions right. */
 export default function AppHeader({ children, sticky = false }) {
   return (
     <header
@@ -6,7 +8,12 @@ export default function AppHeader({ children, sticky = false }) {
         sticky ? 'sticky top-0 z-10' : ''
       }`}
     >
-      <span className="text-lg font-black tracking-tight text-brand sm:text-xl">PARTY CINEMA</span>
+      <Link
+        to="/dashboard"
+        className="text-lg font-black tracking-tight text-brand transition-opacity hover:opacity-80 sm:text-xl"
+      >
+        PARTY CINEMA
+      </Link>
       <div className="flex items-center gap-4">{children}</div>
     </header>
   )

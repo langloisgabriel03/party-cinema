@@ -51,19 +51,23 @@ export default function Movies() {
   const [page, setPage] = useState(1)
   const gridTopRef = useRef(null)
 
-  // One-time sync once real data arrives: the year filter starts at a wide static fallback (see
-  // FALLBACK_BOUNDS) so it never excludes anything before load, but that means it'd otherwise
-  // permanently mismatch the real `bounds` and show as a false "active" chip. Only syncs if the
-  // user hasn't touched the year filter yet -- before movies load there's nothing to touch anyway
-  // (the filter dialog has no options until then), so this can't clobber a real user choice.
+  // Keep the year filter following `bounds` as long as the user hasn't touched it -- not just
+  // once. The catalog now loads progressively (see useMovieCatalogStore.initMovies): page 1
+  // lands first, so `bounds` itself widens in steps as more pages stream in. A one-time "synced
+  // yet?" flag would sync to page 1's (incomplete) range and then never move again, permanently
+  // stranding the lower bound wherever the first 1000 rows happened to end. Comparing against the
+  // *previous* bounds instead of a fixed fallback makes every widening step re-sync, and stops
+  // re-syncing the instant filters diverge from bounds (i.e. the user actually changed it).
+  const previousBoundsRef = useRef(bounds)
   useEffect(() => {
-    if (!movies.length) return
+    const previous = previousBoundsRef.current
     setFilters((f) =>
-      f.yearMin === FALLBACK_BOUNDS.yearMin && f.yearMax === FALLBACK_BOUNDS.yearMax
+      f.yearMin === previous.yearMin && f.yearMax === previous.yearMax
         ? { ...f, yearMin: bounds.yearMin, yearMax: bounds.yearMax }
         : f
     )
-  }, [movies.length, bounds])
+    previousBoundsRef.current = bounds
+  }, [bounds])
 
   // Split from the filter/sort memo below so toggling a genre chip doesn't re-run MiniSearch,
   // and so the fallback-to-plain-text decision (see resolveSearchMatches) happens on the raw

@@ -90,6 +90,8 @@ supabase/
   schema.sql            profiles
   movies_schema.sql      read-only movie catalog, synced from a separate Python scraper (rt-dashboard)
   plan_schema.sql        watchlist_items + nights, RLS, realtime, the deleted_rows undo trigger
+  plan_schema_v2.sql     migration: night_movies join table (a night can hold >1 film), drops
+                          nights.movie_id/start_time -- nights are day-only, apply after plan_schema.sql
 ```
 
 Deploy details that are easy to break:

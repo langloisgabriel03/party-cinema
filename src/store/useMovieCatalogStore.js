@@ -1,7 +1,7 @@
 import MiniSearch from 'minisearch'
 import { create } from 'zustand'
 
-import { fetchAllMovies } from '@/lib/movies'
+import { fetchFirstMoviesPage, fetchRemainingMoviesPages } from '@/lib/movies'
 import { supabase, supabaseConfigured } from '@/lib/supabaseClient'
 import { weightedScore } from '@/data/movieCatalog'
 
@@ -57,6 +57,11 @@ export const useMovieCatalogStore = create((set, get) => ({
 
   // Lazy: called from Movies.jsx's own effect, not app-wide on boot -- fetching ~2-5MB on every
   // app load regardless of whether the user ever opens the search page would waste mobile data.
+  //
+  // Progressive: page 1 (1000 rows, newest-first -- matches the default UI sort) renders as soon
+  // as it lands instead of waiting on the whole ~5,851-row catalog, then the rest streams in and
+  // appends in the background. MiniSearch's .addAll() extends the existing index rather than
+  // rebuilding it, so search works (against a growing corpus) throughout.
   initMovies: async () => {
     if (fetched) return
     fetched = true
@@ -67,12 +72,25 @@ export const useMovieCatalogStore = create((set, get) => ({
     }
 
     try {
-      const rows = await fetchAllMovies()
-      const movies = rows.map((movie) => ({ ...movie, weightedScore: weightedScore(movie) }))
-      searchIndex = buildSearchIndex(movies)
-      // The full catalog is a superset of anything ensureMovies() could have backfilled
-      // already, so a fresh Map here is correct, not a merge.
-      set({ movies, moviesById: new Map(movies.map((m) => [m.id, m])), moviesLoading: false, moviesError: null })
+      const firstRows = await fetchFirstMoviesPage()
+      const first = firstRows.map((movie) => ({ ...movie, weightedScore: weightedScore(movie) }))
+      searchIndex = buildSearchIndex(first)
+      set((state) => ({
+        movies: first,
+        moviesById: new Map([...state.moviesById, ...first.map((m) => [m.id, m])]),
+        moviesLoading: false,
+        moviesError: null,
+      }))
+
+      const restRows = await fetchRemainingMoviesPages()
+      if (restRows.length) {
+        const rest = restRows.map((movie) => ({ ...movie, weightedScore: weightedScore(movie) }))
+        searchIndex.addAll(rest)
+        set((state) => ({
+          movies: [...state.movies, ...rest],
+          moviesById: new Map([...state.moviesById, ...rest.map((m) => [m.id, m])]),
+        }))
+      }
     } catch (error) {
       set({ moviesLoading: false, moviesError: error.message })
     }

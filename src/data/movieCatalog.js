@@ -11,6 +11,19 @@ const SORT_FIELDS = {
 
 export const SORT_OPTIONS = Object.keys(SORT_FIELDS)
 
+export function scoreColor(score) {
+  if (score == null) return 'text-neutral-500'
+  if (score >= 70) return 'text-green-400'
+  if (score >= 40) return 'text-amber-400'
+  return 'text-red-400'
+}
+
+export function formatCount(n) {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, '')}K`
+  return String(n)
+}
+
 // Niche/awards-circuit genres for a "movie night with friends" app -- hidden behind a "Show
 // more" toggle in the filter dialog by default rather than cluttering the primary chip row.
 export const SECONDARY_GENRES = new Set([
@@ -125,8 +138,8 @@ export function createDefaultFilters(bounds) {
     audienceScoreMax: null,
     minCriticReviews: 0,
     minAudienceRatings: 0,
-    sortBy: 'Title',
-    sortDesc: false,
+    sortBy: 'Year',
+    sortDesc: true,
   }
 }
 
