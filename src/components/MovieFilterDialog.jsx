@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
-import { SORT_OPTIONS } from '@/data/movieCatalog'
+import { MIN_POPCORNMETER, SORT_OPTIONS } from '@/data/movieCatalog'
 import filterSchema from '@/data/filterSchema.json'
 
 const toggleInArray = (array, value) =>
@@ -196,9 +196,10 @@ export default function MovieFilterDialog({
           />
           <RangeInputs
             label="Popcornmeter"
+            hint={`movies below ${MIN_POPCORNMETER}% are always hidden`}
             min={filters.audienceScoreMin}
             max={filters.audienceScoreMax}
-            bound={{ min: 0, max: 100 }}
+            bound={{ min: MIN_POPCORNMETER, max: 100 }}
             onMinChange={(v) => patch({ audienceScoreMin: v })}
             onMaxChange={(v) => patch({ audienceScoreMax: v })}
           />
