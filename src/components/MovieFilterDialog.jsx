@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
-import { MIN_POPCORNMETER, SORT_OPTIONS } from '@/data/movieCatalog'
+import { MIN_AUDIENCE_RATING_COUNT, SORT_OPTIONS } from '@/data/movieCatalog'
 import filterSchema from '@/data/filterSchema.json'
 
 const toggleInArray = (array, value) =>
@@ -196,10 +196,9 @@ export default function MovieFilterDialog({
           />
           <RangeInputs
             label="Popcornmeter"
-            hint={`movies below ${MIN_POPCORNMETER}% are always hidden`}
             min={filters.audienceScoreMin}
             max={filters.audienceScoreMax}
-            bound={{ min: MIN_POPCORNMETER, max: 100 }}
+            bound={{ min: 0, max: 100 }}
             onMinChange={(v) => patch({ audienceScoreMin: v })}
             onMaxChange={(v) => patch({ audienceScoreMax: v })}
           />
@@ -219,14 +218,16 @@ export default function MovieFilterDialog({
             />
           </label>
           <label className="flex flex-col gap-1.5">
-            <span className="text-xs text-neutral-400">Min audience ratings</span>
+            <span className="text-xs text-neutral-400">
+              Min audience ratings (always ≥{MIN_AUDIENCE_RATING_COUNT})
+            </span>
             <input
               type="number"
               inputMode="numeric"
-              min={0}
+              min={MIN_AUDIENCE_RATING_COUNT}
               value={filters.minAudienceRatings || ''}
               onChange={(e) => patch({ minAudienceRatings: Number(e.target.value) || 0 })}
-              placeholder="0"
+              placeholder={String(MIN_AUDIENCE_RATING_COUNT)}
               className="rounded border border-neutral-700 bg-ink-raised px-2 py-1.5 text-sm text-white outline-none focus:border-neutral-400"
             />
           </label>

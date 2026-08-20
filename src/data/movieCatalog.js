@@ -11,10 +11,10 @@ const SORT_FIELDS = {
 
 export const SORT_OPTIONS = Object.keys(SORT_FIELDS)
 
-// Hard floor, not a user-togglable filter: nobody in the group wants to see a movie with a bad
-// audience score. Applied unconditionally in filterMovies() below. Movies with no audience_score
-// yet (never rated, not proven bad) still show -- only a confirmed low score hides a movie.
-export const MIN_POPCORNMETER = 50
+// Hard floor, not a user-togglable filter: excludes niche/random titles nobody's heard of.
+// Unlike a score floor, a missing/zero rating count IS exactly the "obscure" signal this is
+// meant to catch, so null counts as 0 here (unrated == nobody's watched it == excluded).
+export const MIN_AUDIENCE_RATING_COUNT = 50
 
 /**
  * Mirrors rt-dashboard's actual Library-page formula: a plain mean, not the unrelated 2/3-1/3
@@ -146,7 +146,7 @@ export function describeActiveFilters(filters, bounds) {
 export function filterMovies(movies, filters, matchIds) {
   return movies.filter((movie) => {
     if (matchIds && !matchIds.has(movie.id)) return false
-    if (movie.audience_score != null && movie.audience_score < MIN_POPCORNMETER) return false
+    if ((movie.audience_rating_count ?? 0) < MIN_AUDIENCE_RATING_COUNT) return false
     if (filters.lists.length && !movie.lists.some((l) => filters.lists.includes(l))) return false
     if (filters.genres.length && !movie.genres.some((g) => filters.genres.includes(g))) return false
     if (filters.onlyFranchise && !movie.franchise) return false
