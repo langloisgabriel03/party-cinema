@@ -1,0 +1,217 @@
+{
+  "_comment": "Canonical filter map for data/movies.db (table `movies`). Reuse this file when building new filter pages over movie datasets in this project, so filters stay consistent (see CLAUDE.md). Genre/director/cast/runtime/poster/synopsis come from whichever list added the movie (currently Letterboxd only). tomatometer/audience_score/critic_review_count/audience_rating_count always come from Rotten Tomatoes, for every list, and are refreshed on their own via refresh_scores.py.",
+  "source_dataset": "data/movies.db",
+  "canonical_genres": [
+    "Action",
+    "Adventure",
+    "Animation",
+    "Biography",
+    "Comedy",
+    "Crime",
+    "Documentary",
+    "Drama",
+    "Family",
+    "Fantasy",
+    "History",
+    "Horror",
+    "Music",
+    "Musical",
+    "Mystery",
+    "Romance",
+    "Science Fiction",
+    "Sport",
+    "Thriller",
+    "War",
+    "Western"
+  ],
+  "genre_aliases": {
+    "_comment": "RT sometimes uses compound categories like 'Mystery & Thriller' or 'Kids & Family' — scrapers split those on ' & ' before applying this alias map to each part.",
+    "Sci-Fi": "Science Fiction",
+    "Sports": "Sport",
+    "Kids": "Family",
+    "Anime": "Animation"
+  },
+  "list_labels": {
+    "_comment": "Display name + badge icon for each `lists` value. Add an entry here when a new scrape_<list>.py introduces a new list name, so every filter page shows a proper label instead of the raw slug.",
+    "4k_uhd": {
+      "label": "4K UHD",
+      "icon": "💿"
+    },
+    "disney": {
+      "label": "Disney",
+      "icon": "🏰"
+    },
+    "pixar": {
+      "label": "Pixar",
+      "icon": "💡"
+    },
+    "marvel": {
+      "label": "Marvel",
+      "icon": "🦸"
+    },
+    "star_wars": {
+      "label": "Star Wars",
+      "icon": "⚔️"
+    },
+    "dc": {
+      "label": "DC",
+      "icon": "🦇"
+    },
+    "warner_bros": {
+      "label": "Warner Bros.",
+      "icon": "🎬"
+    },
+    "universal": {
+      "label": "Universal",
+      "icon": "🌎"
+    },
+    "blumhouse": {
+      "label": "Blumhouse",
+      "icon": "🔪"
+    },
+    "dimension_films": {
+      "label": "Dimension Films",
+      "icon": "🎭"
+    },
+    "a24": {
+      "label": "A24",
+      "icon": "🅰️"
+    },
+    "paramount": {
+      "label": "Paramount",
+      "icon": "⛰️"
+    },
+    "columbia": {
+      "label": "Columbia Pictures",
+      "icon": "🗽"
+    },
+    "new_line": {
+      "label": "New Line Cinema",
+      "icon": "🎞️"
+    },
+    "20th_century": {
+      "label": "20th Century Studios",
+      "icon": "🦊"
+    },
+    "platinum_dunes": {
+      "label": "Platinum Dunes",
+      "icon": "🩸"
+    },
+    "ghost_house": {
+      "label": "Ghost House Pictures",
+      "icon": "👻"
+    },
+    "dark_castle": {
+      "label": "Dark Castle Entertainment",
+      "icon": "🏚️"
+    },
+    "screen_gems": {
+      "label": "Screen Gems",
+      "icon": "🧟"
+    },
+    "neon": {
+      "label": "Neon",
+      "icon": "💀"
+    }
+  },
+  "fields": {
+    "title": {
+      "type": "string",
+      "filter": "text_search"
+    },
+    "year": {
+      "type": "int|null",
+      "filter": "range"
+    },
+    "decade": {
+      "type": "int|null",
+      "filter": "select",
+      "derived_from": "year"
+    },
+    "genres": {
+      "type": "array<string>",
+      "filter": "multiselect",
+      "values_from": "canonical_genres"
+    },
+    "director": {
+      "type": "array<string>",
+      "filter": "searchable_multiselect"
+    },
+    "cast": {
+      "type": "array<string>",
+      "filter": "searchable_multiselect"
+    },
+    "runtime_minutes": {
+      "type": "int|null",
+      "filter": "range"
+    },
+    "tomatometer": {
+      "type": "int|null",
+      "filter": "range",
+      "min": 0,
+      "max": 100,
+      "source": "rottentomatoes"
+    },
+    "audience_score": {
+      "type": "int|null",
+      "filter": "range",
+      "min": 0,
+      "max": 100,
+      "source": "rottentomatoes"
+    },
+    "critic_review_count": {
+      "type": "int|null",
+      "filter": "range",
+      "source": "rottentomatoes",
+      "description": "RT Tomatometer critic review count; useful as a minimum threshold to exclude obscure/indie titles"
+    },
+    "audience_rating_count": {
+      "type": "int|null",
+      "filter": "range",
+      "source": "rottentomatoes",
+      "description": "RT Popcornmeter audience rating count; typically far larger than critic_review_count, and a second obscure/indie signal (a movie can have decent critic coverage but almost no audience ratings, or vice versa)"
+    },
+    "rt_last_refreshed": {
+      "type": "string|null",
+      "filter": "none",
+      "source": "rottentomatoes"
+    },
+    "countries": {
+      "type": "array<string>",
+      "filter": "multiselect"
+    },
+    "lists": {
+      "type": "array<string>",
+      "filter": "multiselect",
+      "description": "which curated list(s) this movie belongs to"
+    },
+    "synopsis": {
+      "type": "string|null",
+      "filter": "none"
+    },
+    "poster": {
+      "type": "string|null",
+      "filter": "none"
+    },
+    "letterboxd_url": {
+      "type": "string",
+      "filter": "none"
+    },
+    "rt_url": {
+      "type": "string|null",
+      "filter": "none"
+    },
+    "slug": {
+      "type": "string",
+      "filter": "none"
+    },
+    "data_sources": {
+      "type": "array<string>",
+      "filter": "none",
+      "values": [
+        "letterboxd",
+        "rottentomatoes"
+      ]
+    }
+  }
+}

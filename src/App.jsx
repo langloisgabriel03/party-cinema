@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Navigate, RouterProvider, createBrowserRouter } from 'react-router-dom'
 
 import Dashboard from '@/pages/Dashboard'
+import Movies from '@/pages/Movies'
 import ProfileSelect from '@/pages/ProfileSelect'
 import { useAppStore } from '@/store/useAppStore'
 
@@ -26,6 +27,14 @@ const router = createBrowserRouter(
       element: (
         <RequireProfile>
           <Dashboard />
+        </RequireProfile>
+      ),
+    },
+    {
+      path: '/movies',
+      element: (
+        <RequireProfile>
+          <Movies />
         </RequireProfile>
       ),
     },

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import AddProfileDialog from '@/components/AddProfileDialog'
+import AppHeader from '@/components/AppHeader'
 import ProfileCard, { AddProfileTile } from '@/components/ProfileCard'
 import { useAppStore } from '@/store/useAppStore'
 
@@ -20,10 +21,7 @@ export default function ProfileSelect() {
 
   return (
     <div className="flex min-h-dvh flex-col bg-ink text-white">
-      <header className="flex items-center justify-between px-6 py-5 sm:px-10">
-        <span className="text-lg font-black tracking-tight text-brand sm:text-xl">
-          PARTY CINEMA
-        </span>
+      <AppHeader>
         <button
           type="button"
           onClick={() => setDialogOpen(true)}
@@ -31,7 +29,7 @@ export default function ProfileSelect() {
         >
           + Add profile
         </button>
-      </header>
+      </AppHeader>
 
       <main className="flex flex-1 flex-col items-center justify-center gap-10 px-6 pb-20">
         <h1 className="text-center text-4xl font-light sm:text-6xl">Who&rsquo;s watching?</h1>
