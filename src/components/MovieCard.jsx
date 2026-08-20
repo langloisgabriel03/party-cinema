@@ -9,6 +9,12 @@ function scoreColor(score) {
   return 'text-red-400'
 }
 
+function formatCount(n) {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, '')}K`
+  return String(n)
+}
+
 function MovieCard({ movie }) {
   const listBadges = movie.lists.map((key) => filterSchema.list_labels[key]).filter(Boolean)
 
@@ -49,9 +55,23 @@ function MovieCard({ movie }) {
           {movie.year}
           {movie.runtime_minutes ? ` · ${movie.runtime_minutes} min` : ''}
         </p>
-        <div className="mt-auto flex items-center gap-3 pt-1 text-xs font-semibold">
-          <span className={scoreColor(movie.tomatometer)}>🍅 {movie.tomatometer ?? '—'}</span>
-          <span className={scoreColor(movie.audience_score)}>🍿 {movie.audience_score ?? '—'}</span>
+        <div className="mt-auto flex flex-col gap-0.5 pt-1.5">
+          <div className="flex items-baseline gap-1.5">
+            <span className={`text-base font-bold sm:text-lg ${scoreColor(movie.tomatometer)}`}>
+              🍅 {movie.tomatometer != null ? `${movie.tomatometer}%` : '—'}
+            </span>
+            {movie.critic_review_count > 0 && (
+              <span className="text-xs text-neutral-500">{formatCount(movie.critic_review_count)}</span>
+            )}
+          </div>
+          <div className="flex items-baseline gap-1.5">
+            <span className={`text-base font-bold sm:text-lg ${scoreColor(movie.audience_score)}`}>
+              🍿 {movie.audience_score != null ? `${movie.audience_score}%` : '—'}
+            </span>
+            {movie.audience_rating_count > 0 && (
+              <span className="text-xs text-neutral-500">{formatCount(movie.audience_rating_count)}</span>
+            )}
+          </div>
         </div>
       </div>
     </div>
