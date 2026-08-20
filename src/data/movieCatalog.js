@@ -11,6 +11,24 @@ const SORT_FIELDS = {
 
 export const SORT_OPTIONS = Object.keys(SORT_FIELDS)
 
+// Niche/awards-circuit genres for a "movie night with friends" app -- hidden behind a "Show
+// more" toggle in the filter dialog by default rather than cluttering the primary chip row.
+export const SECONDARY_GENRES = new Set([
+  'Sport',
+  'War',
+  'Western',
+  'Romance',
+  'Musical',
+  'Music',
+  'History',
+  'Drama',
+  'Documentary',
+  'Biography',
+])
+
+// Same idea for the smaller/niche studio lists.
+export const SECONDARY_LISTS = new Set(['screen_gems', 'dark_castle', 'neon', 'platinum_dunes'])
+
 // Hard floor, not a user-togglable filter: excludes niche/random titles nobody's heard of.
 // Unlike a score floor, a missing/zero rating count IS exactly the "obscure" signal this is
 // meant to catch, so null counts as 0 here (unrated == nobody's watched it == excluded).
@@ -53,18 +71,24 @@ function bounds(movies, field) {
   return { min, max }
 }
 
-/** Actual data bounds -- used as always-active year filter defaults and as label/placeholder text. */
+/** Actual data bounds -- used as always-active year filter defaults, slider ranges, and labels. */
 export function deriveFilterBounds(movies) {
   const year = bounds(movies, 'year')
   const runtime = bounds(movies, 'runtime_minutes')
   const tomatometer = bounds(movies, 'tomatometer')
   const audienceScore = bounds(movies, 'audience_score')
+  const criticReviewCount = bounds(movies, 'critic_review_count')
+  const audienceRatingCount = bounds(movies, 'audience_rating_count')
   return {
     yearMin: year.min ?? 1900,
     yearMax: year.max ?? new Date().getFullYear(),
     runtimeBounds: runtime,
     tomatometerBounds: tomatometer,
     audienceScoreBounds: audienceScore,
+    // Sliders need a real 0-based floor even though no movie has exactly 0 reviews -- "no
+    // minimum" has to be reachable by dragging all the way down.
+    criticReviewCountBounds: { min: 0, max: criticReviewCount.max ?? 0 },
+    audienceRatingCountBounds: { min: 0, max: audienceRatingCount.max ?? 0 },
   }
 }
 
@@ -175,4 +199,63 @@ export function filterMovies(movies, filters, matchIds) {
       return false
     return true
   })
+}
+
+const YEAR_TOKEN = /^\d{2,4}$/
+
+/**
+ * A trailing all-digit token is a year *prefix* only if it's 2-4 digits and starts with 19 or 20
+ * -- so "star wars 19" means the 1900s, "199" the 1990s, "1977" exactly 1977. The 19/20 guard is
+ * what keeps "apollo 13", "catch 22", "district 9" and "ocean's 11" ordinary text searches.
+ * Leading digits are never treated as years: "1917", "2012" and "300" are titles far more often
+ * than filters.
+ */
+export function parseSearchQuery(raw) {
+  const full = raw.trim()
+  if (!full) return { text: '', yearPrefix: null, full: '' }
+  const tokens = full.split(/\s+/)
+  const last = tokens[tokens.length - 1]
+  if (!YEAR_TOKEN.test(last) || !(last.startsWith('19') || last.startsWith('20')))
+    return { text: full, yearPrefix: null, full }
+  return { text: tokens.slice(0, -1).join(' '), yearPrefix: last, full }
+}
+
+/** Every id in `ids` gets an `order` entry -- a partial map would NaN out the caller's comparator. */
+function ranked(hits, extraIds) {
+  const ids = new Set(hits.map((h) => h.id))
+  const order = new Map(hits.map((h, i) => [h.id, i]))
+  if (extraIds) {
+    for (const id of extraIds) {
+      if (!ids.has(id)) {
+        ids.add(id)
+        order.set(id, hits.length) // one shared rank; the caller's sort breaks the tie
+      }
+    }
+  }
+  return { ids, order }
+}
+
+/**
+ * Returns null when there's no query at all -- filterMovies reads that as "no search".
+ * `index` is passed in (not imported) so this file stays pure/no-React, matching its header.
+ */
+export function resolveSearchMatches(rawQuery, movies, index) {
+  const { text, yearPrefix, full } = parseSearchQuery(rawQuery)
+  if (!full) return null
+  const search = (q) => (index ? index.search(q) : [])
+  if (!yearPrefix) return { ...ranked(search(full)), yearPrefix: null }
+
+  const yearIds = new Set()
+  for (const movie of movies) if (String(movie.year).startsWith(yearPrefix)) yearIds.add(movie.id)
+
+  // Query is only the year: union, so "1917" surfaces the film 1917 *and* films from 1917.
+  if (!text) return { ...ranked(search(full), yearIds), yearPrefix }
+
+  const hits = search(text).filter((hit) => yearIds.has(hit.id))
+  if (hits.length) return { ...ranked(hits), yearPrefix }
+
+  // Nothing from that year: the digits were probably part of the title ("blade runner 2049", a
+  // 2017 film). Decided here, on the raw match set -- deliberately *before* filterMovies runs,
+  // so toggling a genre chip can never flip which reading of the query is in effect.
+  return { ...ranked(search(full)), yearPrefix: null }
 }

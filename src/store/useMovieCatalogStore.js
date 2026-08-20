@@ -2,7 +2,7 @@ import MiniSearch from 'minisearch'
 import { create } from 'zustand'
 
 import { fetchAllMovies } from '@/lib/movies'
-import { supabaseConfigured } from '@/lib/supabaseClient'
+import { supabase, supabaseConfigured } from '@/lib/supabaseClient'
 import { weightedScore } from '@/data/movieCatalog'
 
 /**
@@ -13,6 +13,9 @@ import { weightedScore } from '@/data/movieCatalog'
  */
 let fetched = false
 let searchIndex = null
+// Guards ensureMovies() against firing duplicate requests when two components ask for
+// overlapping ids in the same tick (e.g. Dashboard's watchlist section and its calendar).
+const inFlight = new Set()
 
 /** Module-level singleton, not store state: imperative search infrastructure, not reactive data. */
 export function getMovieSearchIndex() {
@@ -43,10 +46,14 @@ function buildSearchIndex(movies) {
   return index
 }
 
-export const useMovieCatalogStore = create((set) => ({
+export const useMovieCatalogStore = create((set, get) => ({
   movies: [],
   moviesLoading: true,
   moviesError: null,
+  // The single id -> movie lookup surface for the whole app (watchlist cards, night dialogs),
+  // not just the /movies grid. Populated by whichever source gets there first: the full catalog
+  // fetch below, or a targeted ensureMovies() backfill from the Dashboard.
+  moviesById: new Map(),
 
   // Lazy: called from Movies.jsx's own effect, not app-wide on boot -- fetching ~2-5MB on every
   // app load regardless of whether the user ever opens the search page would waste mobile data.
@@ -63,9 +70,38 @@ export const useMovieCatalogStore = create((set) => ({
       const rows = await fetchAllMovies()
       const movies = rows.map((movie) => ({ ...movie, weightedScore: weightedScore(movie) }))
       searchIndex = buildSearchIndex(movies)
-      set({ movies, moviesLoading: false, moviesError: null })
+      // The full catalog is a superset of anything ensureMovies() could have backfilled
+      // already, so a fresh Map here is correct, not a merge.
+      set({ movies, moviesById: new Map(movies.map((m) => [m.id, m])), moviesLoading: false, moviesError: null })
     } catch (error) {
       set({ moviesLoading: false, moviesError: error.message })
     }
+  },
+
+  // Backfills just the handful of movies the Dashboard actually references (watchlist + nights),
+  // not the whole catalog -- one request, typically a couple dozen rows. Same code path serves
+  // the initial load and every live watchlist insert from a friend, since a realtime INSERT
+  // payload on watchlist_items carries only the bare movie_id, never the joined movie record.
+  ensureMovies: async (ids) => {
+    if (!supabaseConfigured || !ids.length) return
+    const have = get().moviesById
+    const missing = ids.filter((id) => !have.has(id) && !inFlight.has(id))
+    if (!missing.length) return
+    missing.forEach((id) => inFlight.add(id))
+
+    const { data, error } = await supabase.from('movies').select('*').in('id', missing)
+    missing.forEach((id) => inFlight.delete(id))
+    if (error) {
+      set({ moviesError: error.message })
+      return
+    }
+
+    // Replace the Map, never mutate it in place: Zustand compares with Object.is, so an
+    // in-place .set() on the existing Map changes nothing observable and nothing re-renders.
+    set((state) => {
+      const next = new Map(state.moviesById)
+      for (const row of data) next.set(row.id, { ...row, weightedScore: weightedScore(row) })
+      return { moviesById: next }
+    })
   },
 }))

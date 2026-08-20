@@ -1,5 +1,6 @@
 import { memo } from 'react'
 
+import WatchlistButton from '@/components/WatchlistButton'
 import filterSchema from '@/data/filterSchema.json'
 
 function scoreColor(score) {
@@ -47,6 +48,7 @@ function MovieCard({ movie }) {
             ))}
           </div>
         )}
+        <WatchlistButton movieId={movie.id} />
       </div>
 
       <div className="flex flex-1 flex-col gap-1 p-2">

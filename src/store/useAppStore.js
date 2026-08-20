@@ -4,9 +4,11 @@ import { persist } from 'zustand/middleware'
 import { supabase, supabaseConfigured } from '@/lib/supabaseClient'
 
 /**
- * `profiles` is shared across everyone via Supabase (see README) -- this is the one store that
- * grows later when the watchlist (`movies`) and scheduled nights (`nights`) are added, likely as
- * their own tables + slices here.
+ * `profiles` is shared across everyone via Supabase (see README). The movie catalog
+ * (`useMovieCatalogStore`) and the shared watchlist/nights (`usePlanStore`) deliberately live in
+ * their own stores, not here -- this store is wrapped in `persist`, and shared server state
+ * inside a persisted store means either persisting it too (a stale localStorage copy fighting
+ * realtime on rehydrate is a nasty bug class) or permanently maintaining an exclusion list.
  *
  * `currentProfileId` stays in localStorage: which profile *this browser* is using is a per-device
  * choice, same as Netflix, not shared data -- so it's the only thing persisted.

@@ -27,6 +27,7 @@ const PHOTO_AVATARS = {
   antho: withBase('photos/antho.jpg'),
   nichon: withBase('photos/nichon.jpg'),
   gaybes: withBase('photos/gaybes.jpg'),
+  gorguie: withBase('photos/gorguie.jpg'),
 }
 
 export function avatarSrc(id) {

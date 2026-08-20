@@ -1,12 +1,9 @@
 # Party Cinema 🍿
 
-Plan movie nights with friends: everyone adds films to a shared watchlist, then we use a calendar to
-schedule a night and pick what we watch.
+Plan movie nights with friends: everyone browses a 5,851-movie catalog and adds what they want to watch,
+then a calendar schedules a night and (optionally) picks a film from the list.
 
 **Live:** https://tooning.co
-
-> Current status: the skeleton. Netflix-style profile selection (shared across everyone via Supabase) →
-> a placeholder dashboard. The watchlist and the calendar are not built yet.
 
 ## Stack
 
@@ -16,7 +13,8 @@ schedule a night and pick what we watch.
 | UI | React 19 (plain JavaScript, no TypeScript) |
 | Routing | React Router 7 (`createBrowserRouter`) |
 | Styling | Tailwind CSS v4 (`@tailwindcss/vite`, no config file — theme tokens live in `src/index.css`) |
-| State | Zustand 5 + `persist` (only `currentProfileId` is local; profiles live in Supabase) |
+| Search | MiniSearch (client-side, over the whole catalog fetched once — see `src/store/useMovieCatalogStore.js`) |
+| State | Zustand 5 (only `useAppStore`'s `currentProfileId` is `persist`ed to localStorage; everything shared lives in Supabase) |
 | Backend | Supabase (Postgres + realtime), free tier |
 | Hosting | GitHub Pages via GitHub Actions, custom domain |
 
@@ -52,25 +50,46 @@ Put these in a local `.env` (gitignored) for `npm run dev`/`npm run build`. In C
 `VITE_SUPABASE_ANON_KEY`, referenced in `.github/workflows/deploy.yml`.
 
 The anon key is meant to be public (it ships in the JS bundle) — access control is enforced by
-**Row Level Security** policies on the Supabase tables, not by keeping the key secret. Schema + policies:
-see `supabase/schema.sql`.
+**Row Level Security** policies on the Supabase tables, not by keeping the key secret. `watchlist_items`
+and `nights` are open to anon INSERT/DELETE (and UPDATE for `nights`) since there's no auth system —
+profiles are a trust-based Netflix-style chooser, not accounts. A `deleted_rows` trigger (see
+`supabase/plan_schema.sql`) is the mitigation: it logs every delete server-side where the anon key can't
+read or erase it, so a wipe is recoverable with one SQL statement instead of being permanent.
 
-Without these two vars set, the app still runs — the profile screen just shows
-"Supabase is not configured yet." instead of crashing.
+Without these two vars set, the app still runs — pages show "Supabase is not configured yet." instead of
+crashing.
 
 ## How the pieces fit
 
 ```
 src/
-  App.jsx                       router + RequireProfile guard (waits out the loading state)
-  lib/supabaseClient.js         Supabase client, degrades gracefully if env vars are missing
-  store/useAppStore.js          the single app store — movies[] and nights[] go here next
-  data/avatars.js               built-in avatar manifest (profiles store the id, not the URL)
-  pages/ProfileSelect.jsx       "Who's watching?"
-  pages/Dashboard.jsx           placeholder
-  components/ProfileCard.jsx    profile tile + the dashed "add" tile
-  components/AddProfileDialog.jsx   inserts into Supabase directly
-supabase/schema.sql             profiles table + RLS policies + realtime, paste into SQL editor
+  App.jsx                          router + RequireProfile guard (waits out the loading state)
+  lib/
+    supabaseClient.js              Supabase client, degrades gracefully if env vars are missing
+    movies.js                      fetchAllMovies() -- paginates past PostgREST's 1000-row cap
+  store/
+    useAppStore.js                 profiles (shared) + currentProfileId (local, the only persisted field)
+    useMovieCatalogStore.js        the 5,851-row catalog + MiniSearch index + moviesById/ensureMovies
+                                    (targeted backfill for the dashboard, without fetching the whole catalog)
+    usePlanStore.js                shared watchlist_items + nights, realtime, optimistic writes
+  data/
+    avatars.js                     built-in + personal photo avatars (profiles store the id, not the URL)
+    filterSchema.json              genre taxonomy + list labels, copied from the rt-dashboard scraper project
+    movieCatalog.js                pure helpers: filtering, sorting, weighted score, year-aware search parser
+    plan.js                        pure helpers: grouping the watchlist by movie, sorting/filtering nights
+    dates.js                       date-only helpers -- see the big comment there about UTC boundary bugs
+  pages/
+    ProfileSelect.jsx              "Who's watching?"
+    Dashboard.jsx                  next night, calendar, upcoming nights, watchlist
+    Movies.jsx                     search/filter/browse the catalog, add to watchlist
+  components/
+    AppHeader.jsx, ProfileCard.jsx, AddProfileDialog.jsx
+    MovieCard.jsx, MovieFilterDialog.jsx, WatchlistButton.jsx
+    MonthCalendar.jsx, NightDialog.jsx, WatchlistCard.jsx, UpcomingNights.jsx
+supabase/
+  schema.sql            profiles
+  movies_schema.sql      read-only movie catalog, synced from a separate Python scraper (rt-dashboard)
+  plan_schema.sql        watchlist_items + nights, RLS, realtime, the deleted_rows undo trigger
 ```
 
 Deploy details that are easy to break:
@@ -84,12 +103,28 @@ Deploy details that are easy to break:
 - **`404.html`** — GitHub Pages has no SPA rewrite rule, so a small plugin in `vite.config.js` copies
   `dist/index.html` to `dist/404.html` at build time. Without it, refreshing on `/dashboard` shows
   GitHub's 404 page.
+- **`src/data/dates.js`** — every date the calendar touches must go through `toISODate`/`fromISODate`.
+  `new Date('2026-08-25')` parses as UTC midnight, which renders as the wrong day in a negative-offset
+  timezone; this file exists specifically to keep that bug out.
 
 Deploys run automatically on every push to `main`. Repo **Settings → Pages → Source** must be
 **GitHub Actions**, and **Settings → Pages → Custom domain** must be `tooning.co` with DNS pointed at
 GitHub (A/AAAA records at your DNS host) for the domain to actually resolve.
 
+## The movie catalog
+
+`movies_schema.sql` is a **read-only mirror** — the app can SELECT but never write to it. The real source
+of truth is a separate Python scraper project (`rt-dashboard`), which pushes updates via
+`sync_to_supabase.py` using the Supabase service_role key (never shipped to the browser). Run that script
+after a re-scrape to pick up new titles or refreshed Rotten Tomatoes scores.
+
+On `/movies`, the whole catalog is fetched once client-side and searched/filtered entirely in the
+browser — see `useMovieCatalogStore.js` for why (no per-keystroke network round-trip, matches the source
+scraper's own architecture at this data size). Movies with fewer than
+`MIN_AUDIENCE_RATING_COUNT` (50) audience ratings are permanently excluded everywhere, not just behind a
+togglable filter — see the comment in `movieCatalog.js`.
+
 ## Next up
 
-- [ ] Movie search (TMDb) + shared watchlist
-- [ ] Calendar to schedule a night and pick a film from the list
+- [ ] TMDb-style richer movie detail (synopsis expansion, trailer link) — currently just card-level info
+- [ ] A dedicated watchlist page (Dashboard currently caps the preview and expands inline)

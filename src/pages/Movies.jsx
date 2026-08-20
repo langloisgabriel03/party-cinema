@@ -13,8 +13,11 @@ import {
   filterMovies,
   getDistinctFranchises,
   getPresentGenres,
+  parseSearchQuery,
+  resolveSearchMatches,
 } from '@/data/movieCatalog'
 import { getMovieSearchIndex, useMovieCatalogStore } from '@/store/useMovieCatalogStore'
+import { usePlanStore } from '@/store/usePlanStore'
 
 const PAGE_SIZE = 30
 // Wide static fallback so the year filter never excludes anything before real data loads --
@@ -27,10 +30,12 @@ export default function Movies() {
   const moviesLoading = useMovieCatalogStore((state) => state.moviesLoading)
   const moviesError = useMovieCatalogStore((state) => state.moviesError)
   const initMovies = useMovieCatalogStore((state) => state.initMovies)
+  const initPlan = usePlanStore((state) => state.initPlan)
 
   useEffect(() => {
     initMovies()
-  }, [initMovies])
+    initPlan()
+  }, [initMovies, initPlan])
 
   const bounds = useMemo(() => deriveFilterBounds(movies), [movies])
   const presentGenres = useMemo(
@@ -60,28 +65,28 @@ export default function Movies() {
     )
   }, [movies.length, bounds])
 
+  // Split from the filter/sort memo below so toggling a genre chip doesn't re-run MiniSearch,
+  // and so the fallback-to-plain-text decision (see resolveSearchMatches) happens on the raw
+  // match set, before any filter has a chance to influence it.
+  const match = useMemo(
+    () => (movies.length ? resolveSearchMatches(deferredQuery, movies, getMovieSearchIndex()) : null),
+    [movies, deferredQuery]
+  )
+
   const results = useMemo(() => {
     if (!movies.length) return []
-    let matchIds = null
-    let relevanceRank = null
-    const query = deferredQuery.trim()
-    if (query) {
-      const index = getMovieSearchIndex()
-      const hits = index ? index.search(query) : []
-      matchIds = new Set(hits.map((r) => r.id))
-      relevanceRank = new Map(hits.map((r, i) => [r.id, i]))
-    }
-    const filtered = filterMovies(movies, filters, matchIds)
-    // While actively searching, best matches first (MiniSearch's own relevance order) -- the
-    // "Sort by" field only governs order when browsing without a search term. Re-sorting a
-    // search alphabetically/by-year was burying the actual match past page 1.
-    if (relevanceRank) {
-      filtered.sort((a, b) => relevanceRank.get(a.id) - relevanceRank.get(b.id))
-    } else {
-      filtered.sort(compareBy(filters.sortBy, filters.sortDesc))
-    }
+    const filtered = filterMovies(movies, filters, match?.ids ?? null)
+    // While actively searching, best matches first (MiniSearch's own relevance order, with
+    // year-only matches sharing one rank -- see `ranked()`) -- the "Sort by" field only governs
+    // order when browsing without a search term. Re-sorting a search alphabetically/by-year was
+    // burying the actual match past page 1. Every matched id has a rank entry (never undefined),
+    // so this can't degrade into a NaN comparator.
+    const bySort = compareBy(filters.sortBy, filters.sortDesc)
+    filtered.sort(
+      match ? (a, b) => match.order.get(a.id) - match.order.get(b.id) || bySort(a, b) : bySort
+    )
     return filtered
-  }, [movies, deferredQuery, filters])
+  }, [movies, match, filters])
 
   // Reset to page 1 whenever the filtered/sorted result set changes identity.
   useEffect(() => setPage(1), [results])
@@ -129,8 +134,18 @@ export default function Movies() {
           </button>
         </div>
 
-        {activeFilters.length > 0 && (
+        {(match?.yearPrefix || activeFilters.length > 0) && (
           <div className="flex gap-2 overflow-x-auto pb-1">
+            {match?.yearPrefix && (
+              <button
+                type="button"
+                title="Reading this as a year -- click to search it as plain text instead"
+                onClick={() => setRawQuery(parseSearchQuery(rawQuery).text)}
+                className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full bg-brand/20 px-3 py-1 text-xs whitespace-nowrap text-brand hover:bg-brand/30"
+              >
+                Year {match.yearPrefix}… <span className="text-brand/70">×</span>
+              </button>
+            )}
             {activeFilters.map((chip) => (
               <button
                 key={chip.key}
