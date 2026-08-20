@@ -27,6 +27,17 @@ function buildSearchIndex(movies) {
       const value = document[fieldName]
       return Array.isArray(value) ? value.join(' ') : value
     },
+    searchOptions: {
+      prefix: true,
+      fuzzy: 0.2,
+      // AND, not MiniSearch's OR default: "the mask" matching every movie with just "the"
+      // ANYWHERE (title/cast/director) was returning 2000+ near-random results and burying
+      // the actual title. Boosting title means a title match beats an incidental cast/director
+      // hit, so a movie whose title is literally the query ranks first, not somewhere in a
+      // wall of unrelated movies that happen to share a supporting actor's surname.
+      combineWith: 'AND',
+      boost: { title: 3 },
+    },
   })
   index.addAll(movies)
   return index

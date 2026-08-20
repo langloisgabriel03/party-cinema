@@ -63,13 +63,23 @@ export default function Movies() {
   const results = useMemo(() => {
     if (!movies.length) return []
     let matchIds = null
+    let relevanceRank = null
     const query = deferredQuery.trim()
     if (query) {
       const index = getMovieSearchIndex()
-      matchIds = new Set(index ? index.search(query, { prefix: true, fuzzy: 0.2 }).map((r) => r.id) : [])
+      const hits = index ? index.search(query) : []
+      matchIds = new Set(hits.map((r) => r.id))
+      relevanceRank = new Map(hits.map((r, i) => [r.id, i]))
     }
     const filtered = filterMovies(movies, filters, matchIds)
-    filtered.sort(compareBy(filters.sortBy, filters.sortDesc))
+    // While actively searching, best matches first (MiniSearch's own relevance order) -- the
+    // "Sort by" field only governs order when browsing without a search term. Re-sorting a
+    // search alphabetically/by-year was burying the actual match past page 1.
+    if (relevanceRank) {
+      filtered.sort((a, b) => relevanceRank.get(a.id) - relevanceRank.get(b.id))
+    } else {
+      filtered.sort(compareBy(filters.sortBy, filters.sortDesc))
+    }
     return filtered
   }, [movies, deferredQuery, filters])
 
