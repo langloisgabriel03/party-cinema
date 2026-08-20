@@ -18,7 +18,19 @@ export const AVATARS = [
 
 export const DEFAULT_AVATAR_ID = AVATARS[0].id
 
+/**
+ * Personal photo avatars for specific people -- resolved by avatarSrc() but deliberately not
+ * part of AVATARS (the picker in AddProfileDialog): these are one person's own photo, not a
+ * generic option anyone creating a profile should be able to pick for themselves.
+ */
+const PHOTO_AVATARS = {
+  antho: withBase('photos/antho.jpg'),
+  nichon: withBase('photos/nichon.jpg'),
+  gaybes: withBase('photos/gaybes.jpg'),
+}
+
 export function avatarSrc(id) {
+  if (PHOTO_AVATARS[id]) return PHOTO_AVATARS[id]
   const match = AVATARS.find((avatar) => avatar.id === id)
   return (match ?? AVATARS[0]).src
 }
