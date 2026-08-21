@@ -19,11 +19,13 @@ function colX(round) {
   return (round - 1) * (CARD_W + COL_GAP)
 }
 
-function Side({ movieId, match, moviesById, isTop }) {
+function Side({ movieId, match, moviesById, isTop, isBye }) {
   const movie = movieId ? moviesById.get(movieId) : null
   const decided = Boolean(match.winner)
-  const won = decided && match.winner === movieId
-  const lost = decided && !won
+  // A bye isn't a win -- nobody was beaten -- so it doesn't get the winner styling. Marking it
+  // green-and-bold against a "TBD" opponent is what made a fresh bracket look already played.
+  const won = decided && match.winner === movieId && !isBye
+  const lost = decided && movieId && match.winner !== movieId
 
   return (
     <div
@@ -44,11 +46,20 @@ function Side({ movieId, match, moviesById, isTop }) {
       )}
       <span
         className={`truncate text-[11px] leading-tight ${
-          won ? 'font-semibold text-brand' : lost ? 'text-neutral-600 line-through' : 'text-neutral-300'
+          won
+            ? 'font-semibold text-brand'
+            : lost
+              ? 'text-neutral-600 line-through'
+              : movieId
+                ? 'text-neutral-300'
+                : 'text-neutral-600 italic'
         }`}
         title={movie?.title ?? undefined}
       >
-        {movieId ? (movie?.title ?? '…') : 'TBD'}
+        {/* An empty slot means two different things and they must not look alike: "Bye" is a
+            free pass because the field wasn't a power of two, "TBD" is waiting on an earlier
+            match to be decided. */}
+        {movieId ? (movie?.title ?? '…') : isBye ? 'Bye' : 'TBD'}
       </span>
     </div>
   )
@@ -74,10 +85,13 @@ export default function BracketTree({ matches, moviesById, activeMatchId }) {
       const toX = colX(round + 1)
       const toY = centerY(round + 1, Math.floor(match.slot / 2))
       const midX = fromX + COL_GAP / 2
+      const isBye = round === 1 && Boolean(match.movie_a) !== Boolean(match.movie_b)
       connectors.push({
         key: match.id,
         points: `${fromX},${fromY} ${midX},${fromY} ${midX},${toY} ${toX},${toY}`,
-        lit: Boolean(match.winner),
+        // Byes stay unlit: lighting them would draw the same "this was won" line as a real
+        // result, which is most of the tree on a bracket with a lot of byes.
+        lit: Boolean(match.winner) && !isBye,
       })
     }
   }
@@ -116,25 +130,32 @@ export default function BracketTree({ matches, moviesById, activeMatchId }) {
         </svg>
 
         {rounds.map(([round, roundMatches]) =>
-          roundMatches.map((match) => (
-            <div
-              key={match.id}
-              className={`absolute overflow-hidden rounded-md border bg-ink-soft ${
-                match.id === activeMatchId
-                  ? 'border-brand ring-2 ring-brand/40'
-                  : 'border-neutral-800'
-              }`}
-              style={{
-                left: colX(round),
-                top: 24 + centerY(round, match.slot) - CARD_H / 2,
-                width: CARD_W,
-                height: CARD_H,
-              }}
-            >
-              <Side movieId={match.movie_a} match={match} moviesById={moviesById} isTop />
-              <Side movieId={match.movie_b} match={match} moviesById={moviesById} />
-            </div>
-          ))
+          roundMatches.map((match) => {
+            // Only round 1 can hold a bye: an empty slot anywhere later is a match still waiting
+            // on its feeder, which must read as "TBD", not "free pass".
+            const isBye = round === 1 && Boolean(match.movie_a) !== Boolean(match.movie_b)
+            return (
+              <div
+                key={match.id}
+                className={`absolute overflow-hidden rounded-md border bg-ink-soft ${
+                  match.id === activeMatchId
+                    ? 'border-brand ring-2 ring-brand/40'
+                    : isBye
+                      ? 'border-neutral-900 opacity-60'
+                      : 'border-neutral-800'
+                }`}
+                style={{
+                  left: colX(round),
+                  top: 24 + centerY(round, match.slot) - CARD_H / 2,
+                  width: CARD_W,
+                  height: CARD_H,
+                }}
+              >
+                <Side movieId={match.movie_a} match={match} moviesById={moviesById} isBye={isBye} isTop />
+                <Side movieId={match.movie_b} match={match} moviesById={moviesById} isBye={isBye} />
+              </div>
+            )
+          })
         )}
       </div>
     </div>

@@ -24,6 +24,19 @@ export function byeCount(count) {
 }
 
 /**
+ * Largest power of two that fits in `available` -- the count to DEFAULT to, because it's the only
+ * one that produces no byes at all. Any other number still works, it just means some films sit
+ * out round 1, and at 12-of-16 that's a third of the opening round doing nothing, which reads as
+ * a broken bracket even though it's correct.
+ */
+export function cleanBracketSize(available) {
+  if (available < MIN_BRACKET) return 0
+  let size = MIN_BRACKET
+  while (size * 2 <= Math.min(available, MAX_BRACKET)) size *= 2
+  return size
+}
+
+/**
  * Standard tournament seeding, so the top seeds can't meet before the final: for 8 entrants the
  * order is [1,8,4,5,2,7,3,6], read as consecutive pairs. Built by repeatedly splicing each seed
  * against its complement as the field doubles.

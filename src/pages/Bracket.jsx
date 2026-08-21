@@ -9,6 +9,7 @@ import {
   MAX_BRACKET,
   MIN_BRACKET,
   byeCount,
+  cleanBracketSize,
   currentMatch,
   decideWinner,
   forceWinner,
@@ -177,7 +178,9 @@ export default function Bracket() {
   const customByes = byeCount(customIds.length)
 
   const maxFromWatchlist = Math.min(watchlistEntries.length, MAX_BRACKET)
-  const wlCount = Math.min(watchlistCount ?? maxFromWatchlist, maxFromWatchlist)
+  // Defaults to the largest power of two that fits, so the bracket everyone gets without
+  // thinking about it has zero byes.
+  const wlCount = Math.min(watchlistCount ?? cleanBracketSize(maxFromWatchlist), maxFromWatchlist)
   const wlByes = byeCount(wlCount)
 
   const selectedPlayers = playerIds ?? profiles.map((p) => p.id)
@@ -253,9 +256,18 @@ export default function Bracket() {
                     <span className="text-xs text-neutral-500">of {maxFromWatchlist}</span>
                   </div>
                   {wlByes > 0 && (
-                    <p className="text-xs text-neutral-500">
-                      {wlCount} isn&rsquo;t a power of two, so the top {wlByes} seed
-                      {wlByes === 1 ? '' : 's'} skip the first round.
+                    <p className="text-xs text-amber-400/80">
+                      A bracket halves each round, so {wlCount} films need a {wlCount + wlByes}-slot
+                      tree — the top {wlByes} seed{wlByes === 1 ? '' : 's'} get a free pass
+                      (&ldquo;bye&rdquo;) through round 1. Use{' '}
+                      <button
+                        type="button"
+                        onClick={() => setWatchlistCount(cleanBracketSize(maxFromWatchlist))}
+                        className="cursor-pointer underline hover:text-amber-300"
+                      >
+                        {cleanBracketSize(maxFromWatchlist)}
+                      </button>{' '}
+                      for no byes.
                     </p>
                   )}
                   <button
@@ -283,9 +295,12 @@ export default function Bracket() {
               </p>
 
               {customByes > 0 && customIsValid && (
-                <p className="text-xs text-neutral-500">
-                  {customIds.length} isn&rsquo;t a power of two, so the top {customByes} seed
-                  {customByes === 1 ? '' : 's'} skip the first round.
+                <p className="text-xs text-amber-400/80">
+                  A bracket halves each round, so {customIds.length} films need a{' '}
+                  {customIds.length + customByes}-slot tree — the top {customByes} seed
+                  {customByes === 1 ? '' : 's'} get a free pass through round 1. Add{' '}
+                  {customByes} more (or remove {customIds.length - cleanBracketSize(customIds.length)}) for
+                  no byes.
                 </p>
               )}
 
