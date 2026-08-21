@@ -2,8 +2,10 @@ import { useEffect } from 'react'
 import { Navigate, RouterProvider, createBrowserRouter } from 'react-router-dom'
 
 import Dashboard from '@/pages/Dashboard'
+import Games from '@/pages/Games'
 import Movies from '@/pages/Movies'
 import ProfileSelect from '@/pages/ProfileSelect'
+import Roulette from '@/pages/Roulette'
 import { useAppStore } from '@/store/useAppStore'
 
 /** Everything past the profile screen needs a selected profile. */
@@ -35,6 +37,22 @@ const router = createBrowserRouter(
       element: (
         <RequireProfile>
           <Movies />
+        </RequireProfile>
+      ),
+    },
+    {
+      path: '/games',
+      element: (
+        <RequireProfile>
+          <Games />
+        </RequireProfile>
+      ),
+    },
+    {
+      path: '/roulette',
+      element: (
+        <RequireProfile>
+          <Roulette />
         </RequireProfile>
       ),
     },

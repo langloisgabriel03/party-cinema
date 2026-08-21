@@ -15,6 +15,8 @@ import { useAppStore, useCurrentProfile } from '@/store/useAppStore'
 import { useMovieCatalogStore } from '@/store/useMovieCatalogStore'
 import { usePlanStore } from '@/store/usePlanStore'
 
+const NIGHTS_PREVIEW_COUNT = 7
+
 export default function Dashboard() {
   const profile = useCurrentProfile()
   const signOut = useAppStore((state) => state.signOut)
@@ -32,6 +34,7 @@ export default function Dashboard() {
   const ensureMovies = useMovieCatalogStore((state) => state.ensureMovies)
 
   const [selectedDate, setSelectedDate] = useState(null)
+  const [nightsExpanded, setNightsExpanded] = useState(false)
 
   useEffect(() => {
     initPlan()
@@ -69,8 +72,7 @@ export default function Dashboard() {
   )
 
   const nextNightMovieIds = nextNight ? (nightMoviesByNight.get(nextNight.id) ?? []) : []
-  const nextNightFirstMovie = nextNightMovieIds.length ? moviesById.get(nextNightMovieIds[0]) : null
-  const nextNightExtraCount = nextNightMovieIds.length - 1
+  const nextNightMovies = nextNightMovieIds.map((id) => moviesById.get(id)).filter(Boolean)
 
   // The route guard redirects when there's no profile; this covers the render before it runs.
   if (!profile) return null
@@ -122,19 +124,33 @@ export default function Dashboard() {
                   onClick={() => setSelectedDate(nextNight.scheduled_for)}
                   className="flex cursor-pointer items-center gap-4 rounded-xl bg-ink-soft p-4 text-left hover:bg-ink-raised"
                 >
-                  {nextNightFirstMovie?.poster && (
-                    <img
-                      src={nextNightFirstMovie.poster}
-                      alt=""
-                      className="aspect-2/3 w-16 shrink-0 rounded object-cover"
-                    />
+                  {nextNightMovies.length > 0 && (
+                    <div className="flex shrink-0 gap-1.5">
+                      {nextNightMovies.map((movie) =>
+                        movie.poster ? (
+                          <img
+                            key={movie.id}
+                            src={movie.poster}
+                            alt=""
+                            className="aspect-2/3 w-14 rounded object-cover"
+                          />
+                        ) : (
+                          <div
+                            key={movie.id}
+                            className="flex aspect-2/3 w-14 items-center justify-center rounded bg-ink-raised px-1 text-center text-[10px] text-neutral-500"
+                          >
+                            {movie.title}
+                          </div>
+                        )
+                      )}
+                    </div>
                   )}
                   <div className="min-w-0">
                     <p className="text-xs tracking-wide text-neutral-400 uppercase">Next movie night</p>
                     <p className="truncate text-lg font-semibold">{formatNightDate(nextNight.scheduled_for)}</p>
                     <p className="truncate text-sm text-neutral-400">
-                      {nextNightFirstMovie
-                        ? `${nextNightFirstMovie.title}${nextNightExtraCount > 0 ? ` +${nextNightExtraCount} more` : ''}`
+                      {nextNightMovies.length
+                        ? nextNightMovies.map((m) => m.title).join(', ')
                         : nextNightMovieIds.length
                           ? '…'
                           : 'Pick a film →'}
@@ -159,12 +175,32 @@ export default function Dashboard() {
                   Upcoming nights
                 </h2>
                 <UpcomingNights
-                  nights={upcoming}
+                  nights={nightsExpanded ? upcoming : upcoming.slice(0, NIGHTS_PREVIEW_COUNT)}
                   moviesById={moviesById}
                   nightMoviesByNight={nightMoviesByNight}
                   onSelect={setSelectedDate}
                 />
+                {upcoming.length > NIGHTS_PREVIEW_COUNT && (
+                  <button
+                    type="button"
+                    onClick={() => setNightsExpanded((v) => !v)}
+                    className="cursor-pointer self-start text-sm text-brand hover:text-brand-hover"
+                  >
+                    {nightsExpanded ? 'Show less' : `See all (${upcoming.length})`}
+                  </button>
+                )}
               </section>
+
+              <Link
+                to="/games"
+                className="flex items-center gap-3 rounded-xl bg-ink-soft p-4 transition-colors hover:bg-ink-raised"
+              >
+                <span className="text-2xl">🎲</span>
+                <div>
+                  <p className="font-semibold">Picker games</p>
+                  <p className="text-sm text-neutral-400">Can&rsquo;t decide? Spin the roulette.</p>
+                </div>
+              </Link>
             </div>
 
             <section className="flex flex-col gap-3">

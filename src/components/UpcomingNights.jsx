@@ -13,8 +13,7 @@ export default function UpcomingNights({ nights, moviesById, nightMoviesByNight,
     <div className="flex flex-col gap-2">
       {nights.map((night) => {
         const movieIds = nightMoviesByNight.get(night.id) ?? []
-        const firstMovie = movieIds.length ? moviesById.get(movieIds[0]) : null
-        const extraCount = movieIds.length - 1
+        const movies = movieIds.map((id) => moviesById.get(id)).filter(Boolean)
 
         return (
           <button
@@ -23,22 +22,36 @@ export default function UpcomingNights({ nights, moviesById, nightMoviesByNight,
             onClick={() => onSelect(night.scheduled_for)}
             className="flex cursor-pointer items-center gap-3 rounded-lg bg-ink-soft p-3 text-left hover:bg-ink-raised"
           >
-            {firstMovie?.poster ? (
-              <img
-                src={firstMovie.poster}
-                alt=""
-                className="aspect-2/3 w-12 shrink-0 rounded object-cover"
-              />
+            {movies.length > 0 ? (
+              <div className="flex shrink-0 gap-1">
+                {movies.map((movie) =>
+                  movie.poster ? (
+                    <img
+                      key={movie.id}
+                      src={movie.poster}
+                      alt=""
+                      className="aspect-2/3 w-10 rounded object-cover"
+                    />
+                  ) : (
+                    <div
+                      key={movie.id}
+                      className="flex aspect-2/3 w-10 items-center justify-center rounded bg-ink-raised text-xs text-neutral-600"
+                    >
+                      🎬
+                    </div>
+                  )
+                )}
+              </div>
             ) : (
-              <div className="flex aspect-2/3 w-12 shrink-0 items-center justify-center rounded bg-ink-raised text-xs text-neutral-600">
+              <div className="flex aspect-2/3 w-10 shrink-0 items-center justify-center rounded bg-ink-raised text-xs text-neutral-600">
                 {movieIds.length ? '…' : ''}
               </div>
             )}
             <div className="min-w-0 flex-1">
               <p className="text-xs text-neutral-400">{formatNightDate(night.scheduled_for)}</p>
               <p className="truncate text-sm font-medium text-white">
-                {firstMovie
-                  ? `${firstMovie.title}${extraCount > 0 ? ` +${extraCount} more` : ''}`
+                {movies.length
+                  ? movies.map((m) => m.title).join(', ')
                   : movieIds.length
                     ? '…'
                     : 'No film picked yet'}

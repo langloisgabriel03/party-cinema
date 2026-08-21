@@ -12,6 +12,7 @@ import { supabase, supabaseConfigured } from '@/lib/supabaseClient'
  * exclusion list. Not persisted here at all -- refetched on load/reconnect, like the movie catalog.
  */
 let subscribed = false
+let channel = null
 
 function indexByFirst(items, firstKey, secondKey) {
   const map = new Map()
@@ -52,12 +53,97 @@ async function fetchNightMovies() {
   return data
 }
 
+async function fetchRouletteEntries() {
+  const { data, error } = await supabase.from('roulette_entries').select('movie_id, added_by, created_at')
+  if (error) {
+    // roulette_schema.sql is a manual paste-in-dashboard migration, same as the rest of this
+    // app's schema -- it can lag behind a deploy. Treat any failure here as "no entries yet"
+    // rather than failing refreshPlan's Promise.all and taking watchlist/nights down with it.
+    console.warn('roulette_entries fetch failed (has roulette_schema.sql been run?):', error.message)
+    return []
+  }
+  return data
+}
+
+/**
+ * Tears down any existing channel and opens a fresh one. Called on first load AND on every
+ * refocus (see initPlan below) -- a CHANNEL_ERROR after mobile Safari kills the socket on
+ * backgrounding does not reliably self-heal on its own; the old channel object can be left in a
+ * dead state that only a genuine page reload used to clear. Rebuilding from scratch on refocus is
+ * the same fix without the reload, and it's cheap: SUBSCRIBED triggers refreshPlan(), a full
+ * idempotent replace, so a rebuild on an already-healthy channel just re-fetches harmlessly.
+ */
+function connectChannel(set, get) {
+  if (channel) supabase.removeChannel(channel)
+
+  channel = supabase
+    .channel('plan-changes')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'watchlist_items' }, ({ new: row }) => {
+      // Supabase echoes our own writes back -- every handler must be idempotent.
+      const current = get().watchlist
+      if (current.some((item) => item.movie_id === row.movie_id && item.added_by === row.added_by)) return
+      setWatchlist(set, [...current, row])
+    })
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'watchlist_items' }, ({ old: row }) => {
+      // Default replica identity: `old` carries only the PK columns -- exactly (movie_id,
+      // added_by), which is what local rows are keyed on. Number() guards a bigint arriving
+      // as a string never failing to match a numeric id already in state.
+      const movieId = Number(row.movie_id)
+      setWatchlist(
+        set,
+        get().watchlist.filter((item) => !(item.movie_id === movieId && item.added_by === row.added_by))
+      )
+    })
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'nights' }, ({ new: row }) => {
+      const current = get().nights
+      if (current.some((night) => night.id === row.id)) return
+      set({ nights: [...current, row] })
+    })
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'nights' }, ({ new: row }) => {
+      // `new` is the complete post-update row -- replace-by-id is correct, no merge needed.
+      set({ nights: get().nights.map((night) => (night.id === row.id ? row : night)) })
+    })
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'nights' }, ({ old: row }) => {
+      set({ nights: get().nights.filter((night) => night.id !== row.id) })
+    })
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'night_movies' }, ({ new: row }) => {
+      const current = get().nightMovies
+      if (current.some((nm) => nm.night_id === row.night_id && nm.movie_id === row.movie_id)) return
+      setNightMovies(set, [...current, row])
+    })
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'night_movies' }, ({ old: row }) => {
+      const movieId = Number(row.movie_id)
+      setNightMovies(
+        set,
+        get().nightMovies.filter((nm) => !(nm.night_id === row.night_id && nm.movie_id === movieId))
+      )
+    })
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'roulette_entries' }, ({ new: row }) => {
+      const current = get().rouletteEntries
+      if (current.some((item) => item.movie_id === row.movie_id && item.added_by === row.added_by)) return
+      set({ rouletteEntries: [...current, row] })
+    })
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'roulette_entries' }, ({ old: row }) => {
+      const movieId = Number(row.movie_id)
+      set({
+        rouletteEntries: get().rouletteEntries.filter(
+          (item) => !(item.movie_id === movieId && item.added_by === row.added_by)
+        ),
+      })
+    })
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') get().refreshPlan()
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') set({ planError: 'Realtime connection lost.' })
+    })
+}
+
 export const usePlanStore = create((set, get) => ({
   watchlist: [],
   watchlistByMovie: new Map(),
   nights: [],
   nightMovies: [],
   nightMoviesByNight: new Map(),
+  rouletteEntries: [],
   planLoading: true,
   planError: null,
 
@@ -65,14 +151,15 @@ export const usePlanStore = create((set, get) => ({
   // error) without a `fetched` guard, unlike the movie catalog's one-shot fetch.
   refreshPlan: async () => {
     try {
-      const [watchlist, nights, nightMovies] = await Promise.all([
+      const [watchlist, nights, nightMovies, rouletteEntries] = await Promise.all([
         fetchWatchlist(),
         fetchNights(),
         fetchNightMovies(),
+        fetchRouletteEntries(),
       ])
       setWatchlist(set, watchlist)
       setNightMovies(set, nightMovies)
-      set({ nights, planLoading: false, planError: null })
+      set({ nights, rouletteEntries, planLoading: false, planError: null })
     } catch (error) {
       set({ planLoading: false, planError: error.message })
     }
@@ -88,59 +175,16 @@ export const usePlanStore = create((set, get) => ({
     }
 
     // Subscribe BEFORE fetching (unlike useAppStore's profiles subscription): the initial fetch
-    // happens in the SUBSCRIBED callback below, which fires on first connect AND every
-    // auto-reconnect -- closing both the "event landed between fetch and subscribe" window and
-    // the "phone backgrounded, socket died" drift. Safe because refreshPlan() is a full replace.
-    supabase
-      .channel('plan-changes')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'watchlist_items' }, ({ new: row }) => {
-        // Supabase echoes our own writes back -- every handler must be idempotent.
-        const current = get().watchlist
-        if (current.some((item) => item.movie_id === row.movie_id && item.added_by === row.added_by)) return
-        setWatchlist(set, [...current, row])
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'watchlist_items' }, ({ old: row }) => {
-        // Default replica identity: `old` carries only the PK columns -- exactly (movie_id,
-        // added_by), which is what local rows are keyed on. Number() guards a bigint arriving
-        // as a string never failing to match a numeric id already in state.
-        const movieId = Number(row.movie_id)
-        setWatchlist(
-          set,
-          get().watchlist.filter((item) => !(item.movie_id === movieId && item.added_by === row.added_by))
-        )
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'nights' }, ({ new: row }) => {
-        const current = get().nights
-        if (current.some((night) => night.id === row.id)) return
-        set({ nights: [...current, row] })
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'nights' }, ({ new: row }) => {
-        // `new` is the complete post-update row -- replace-by-id is correct, no merge needed.
-        set({ nights: get().nights.map((night) => (night.id === row.id ? row : night)) })
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'nights' }, ({ old: row }) => {
-        set({ nights: get().nights.filter((night) => night.id !== row.id) })
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'night_movies' }, ({ new: row }) => {
-        const current = get().nightMovies
-        if (current.some((nm) => nm.night_id === row.night_id && nm.movie_id === row.movie_id)) return
-        setNightMovies(set, [...current, row])
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'night_movies' }, ({ old: row }) => {
-        const movieId = Number(row.movie_id)
-        setNightMovies(
-          set,
-          get().nightMovies.filter((nm) => !(nm.night_id === row.night_id && nm.movie_id === movieId))
-        )
-      })
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') get().refreshPlan()
-        if (status === 'CHANNEL_ERROR') set({ planError: 'Realtime connection lost.' })
-      })
+    // happens in the SUBSCRIBED callback inside connectChannel, which fires on first connect AND
+    // every auto-reconnect -- closing both the "event landed between fetch and subscribe" window
+    // and the "phone backgrounded, socket died" drift. Safe because refreshPlan() is a full replace.
+    connectChannel(set, get)
 
-    // iOS Safari kills WebSockets aggressively on backgrounding -- reconcile on refocus.
+    // iOS Safari kills WebSockets aggressively on backgrounding, and the resulting CHANNEL_ERROR
+    // doesn't reliably self-heal -- rebuilding the channel from scratch (not just refetching data)
+    // is what used to require a manual page reload to fix.
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') get().refreshPlan()
+      if (document.visibilityState === 'visible') connectChannel(set, get)
     })
   },
 
@@ -231,6 +275,32 @@ export const usePlanStore = create((set, get) => ({
     if (error) {
       setNightMovies(set, previous)
       set({ planError: error.message })
+    }
+  },
+
+  addToRoulette: async (movieId, profileId) => {
+    const previous = get().rouletteEntries
+    if (previous.some((item) => item.movie_id === movieId && item.added_by === profileId)) return
+    set({
+      rouletteEntries: [
+        ...previous,
+        { movie_id: movieId, added_by: profileId, created_at: new Date().toISOString() },
+      ],
+    })
+    const { error } = await supabase.from('roulette_entries').insert({ movie_id: movieId, added_by: profileId })
+    if (error && error.code !== '23505') {
+      set({ rouletteEntries: previous, planError: error.message })
+    }
+  },
+
+  // Removes a movie from the roulette pool entirely (every profile's entry for it), matching the
+  // watchlist's "anyone can remove anything" model -- see plan_schema.sql's policy comment.
+  removeFromRoulette: async (movieId) => {
+    const previous = get().rouletteEntries
+    set({ rouletteEntries: previous.filter((item) => item.movie_id !== movieId) })
+    const { error } = await supabase.from('roulette_entries').delete().eq('movie_id', movieId)
+    if (error) {
+      set({ rouletteEntries: previous, planError: error.message })
     }
   },
 }))

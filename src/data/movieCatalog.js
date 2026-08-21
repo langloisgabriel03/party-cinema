@@ -45,7 +45,7 @@ export const SECONDARY_LISTS = new Set(['screen_gems', 'dark_castle', 'neon', 'p
 // Hard floor, not a user-togglable filter: excludes niche/random titles nobody's heard of.
 // Unlike a score floor, a missing/zero rating count IS exactly the "obscure" signal this is
 // meant to catch, so null counts as 0 here (unrated == nobody's watched it == excluded).
-export const MIN_AUDIENCE_RATING_COUNT = 50
+export const MIN_AUDIENCE_RATING_COUNT = 30
 
 /**
  * Mirrors rt-dashboard's actual Library-page formula: a plain mean, not the unrelated 2/3-1/3
