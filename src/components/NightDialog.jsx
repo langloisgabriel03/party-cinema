@@ -1,6 +1,7 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 
 import { resolveSearchMatches, scoreColor } from '@/data/movieCatalog'
+import { notifyNightBooked } from '@/lib/push'
 import { useAppStore } from '@/store/useAppStore'
 import { getMovieSearchIndex, useMovieCatalogStore } from '@/store/useMovieCatalogStore'
 import { usePlanStore } from '@/store/usePlanStore'
@@ -193,7 +194,14 @@ export default function NightDialog({
   // choice is done, no confirmation view to linger on.
   const handlePickForNewNight = async (movieId) => {
     const night = await scheduleNight({ scheduledFor: iso, createdBy: profileId })
-    if (night) addMovieToNight(night.id, movieId, profileId)
+    if (night) {
+      // Awaited here (unlike NightRow's fire-and-forget addMovieToNight, which attaches a film
+      // to an *existing* night -- not a notify event): notify-night reads night_movies to name
+      // the film, so that row has to exist before it's invoked, or the notification goes out as
+      // a bare date with no title.
+      await addMovieToNight(night.id, movieId, profileId)
+      notifyNightBooked(night.id)
+    }
     onClose()
   }
 

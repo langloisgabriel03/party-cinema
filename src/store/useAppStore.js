@@ -22,6 +22,7 @@ export const useAppStore = create(
       profilesLoading: true,
       profilesError: null,
       currentProfileId: null,
+      pushPromptDismissed: false,
 
       // Fetches the shared profile list once and keeps it live via realtime inserts.
       // Guarded so React StrictMode's double-effect in dev doesn't double-subscribe.
@@ -89,11 +90,19 @@ export const useAppStore = create(
 
       // Back to the "Who's watching?" screen, Netflix-style.
       signOut: () => set({ currentProfileId: null }),
+
+      dismissPushPrompt: () => set({ pushPromptDismissed: true }),
     }),
     {
       name: 'party-cinema',
       version: 2,
-      partialize: (state) => ({ currentProfileId: state.currentProfileId }),
+      // No version bump needed for the new key: zustand's default merge shallow-overlays
+      // persisted state onto the initial state, so an existing localStorage blob that only
+      // carries currentProfileId just falls back to the initial value (false) for this one.
+      partialize: (state) => ({
+        currentProfileId: state.currentProfileId,
+        pushPromptDismissed: state.pushPromptDismissed,
+      }),
     }
   )
 )

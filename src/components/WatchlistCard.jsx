@@ -32,7 +32,7 @@ export default function WatchlistCard({ entry }) {
           ✕
         </button>
       </div>
-      <div className="flex flex-col gap-1.5 p-2">
+      <div className="flex flex-col gap-1.5 p-2 flex-1">
         <p className="line-clamp-2 text-sm leading-tight font-medium text-white">
           {movie?.title ?? 'Loading…'}
         </p>
@@ -58,7 +58,7 @@ export default function WatchlistCard({ entry }) {
           </div>
         )}
 
-        <div className="flex items-center">
+        <div className="flex items-center mt-auto">
           <div className="flex -space-x-2.5">
             {wantedBy.map((profile) => (
               <img

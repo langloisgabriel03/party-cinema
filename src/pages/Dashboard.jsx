@@ -4,11 +4,13 @@ import { Link } from 'react-router-dom'
 import AppHeader from '@/components/AppHeader'
 import MonthCalendar from '@/components/MonthCalendar'
 import NightDialog from '@/components/NightDialog'
+import PushPrompt from '@/components/PushPrompt'
 import UpcomingNights from '@/components/UpcomingNights'
 import WatchlistCard from '@/components/WatchlistCard'
 import { avatarSrc } from '@/data/avatars'
 import { formatNightDate, todayISO } from '@/data/dates'
 import { groupWatchlist, nextUpcomingNight, referencedMovieIds, upcomingNights } from '@/data/plan'
+import { syncSubscription } from '@/lib/push'
 import { useAppStore, useCurrentProfile } from '@/store/useAppStore'
 import { useMovieCatalogStore } from '@/store/useMovieCatalogStore'
 import { usePlanStore } from '@/store/usePlanStore'
@@ -37,6 +39,13 @@ export default function Dashboard() {
   useEffect(() => {
     initPlan()
   }, [initPlan])
+
+  // Repairs a browser-rotated push endpoint and, on a shared device, re-stamps the subscription
+  // to whichever profile is now active -- both silent-rot cases push.js's header comment warns
+  // about. Cheap and idempotent, safe to run on every profile change.
+  useEffect(() => {
+    syncSubscription(profile?.id)
+  }, [profile?.id])
 
   // Targeted backfill: only the movies the watchlist/nights actually reference (not the full
   // catalog) -- see useMovieCatalogStore's ensureMovies for why this beats an eager full fetch.
@@ -96,6 +105,8 @@ export default function Dashboard() {
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-16 sm:px-8">
         <h1 className="py-4 text-2xl font-semibold">Hello, {profile.name} 👋</h1>
+
+        <PushPrompt />
 
         {planError && (
           <p className="mb-4 rounded-lg bg-ink-soft p-3 text-sm text-red-400">
