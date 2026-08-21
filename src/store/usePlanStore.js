@@ -293,12 +293,21 @@ export const usePlanStore = create((set, get) => ({
     }
   },
 
-  // Removes a movie from the roulette pool entirely (every profile's entry for it), matching the
-  // watchlist's "anyone can remove anything" model -- see plan_schema.sql's policy comment.
-  removeFromRoulette: async (movieId) => {
+  // Scoped to one person's own entry, unlike removeWatchlistMovie's "anyone can remove anything".
+  // The roulette is a game with a per-person cap, so pulling someone else's pick out of the pool
+  // both loses them a slot they can't see they've lost and changes the odds mid-game.
+  removeFromRoulette: async (movieId, profileId) => {
     const previous = get().rouletteEntries
-    set({ rouletteEntries: previous.filter((item) => item.movie_id !== movieId) })
-    const { error } = await supabase.from('roulette_entries').delete().eq('movie_id', movieId)
+    set({
+      rouletteEntries: previous.filter(
+        (item) => !(item.movie_id === movieId && item.added_by === profileId)
+      ),
+    })
+    const { error } = await supabase
+      .from('roulette_entries')
+      .delete()
+      .eq('movie_id', movieId)
+      .eq('added_by', profileId)
     if (error) {
       set({ rouletteEntries: previous, planError: error.message })
     }

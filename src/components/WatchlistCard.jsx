@@ -1,3 +1,6 @@
+import { useState } from 'react'
+
+import ScheduleMovieDialog from '@/components/ScheduleMovieDialog'
 import { avatarSrc } from '@/data/avatars'
 import { formatCount, scoreColor } from '@/data/movieCatalog'
 import { usePlanStore } from '@/store/usePlanStore'
@@ -6,9 +9,23 @@ import { usePlanStore } from '@/store/usePlanStore'
 export default function WatchlistCard({ entry }) {
   const { movie, wantedBy } = entry
   const removeWatchlistMovie = usePlanStore((state) => state.removeWatchlistMovie)
+  const [scheduleOpen, setScheduleOpen] = useState(false)
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-lg bg-ink-soft">
+    <>
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => setScheduleOpen(true)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          setScheduleOpen(true)
+        }
+      }}
+      title={movie ? `Schedule a movie night for ${movie.title}` : undefined}
+      className="flex cursor-pointer flex-col overflow-hidden rounded-lg bg-ink-soft transition-colors hover:bg-ink-raised"
+    >
       <div className="relative aspect-2/3 w-full overflow-hidden bg-ink-raised">
         {movie?.poster ? (
           <img
@@ -25,7 +42,10 @@ export default function WatchlistCard({ entry }) {
         )}
         <button
           type="button"
-          onClick={() => removeWatchlistMovie(entry.movieId)}
+          onClick={(e) => {
+            e.stopPropagation() // don't also open the schedule dialog behind it
+            removeWatchlistMovie(entry.movieId)
+          }}
           aria-label={`Remove ${movie?.title ?? 'movie'} from the watchlist`}
           className="absolute top-1 right-1 flex min-h-9 min-w-9 cursor-pointer items-center justify-center rounded-full bg-black/60 text-sm font-bold text-neutral-200 backdrop-blur-sm hover:bg-black/80"
         >
@@ -78,5 +98,17 @@ export default function WatchlistCard({ entry }) {
         </div>
       </div>
     </div>
+
+    {/* Sibling of the card, not a child: nested inside, the dialog's own clicks would bubble
+        back up to the card's onClick and immediately reopen it. */}
+    {scheduleOpen && (
+      <ScheduleMovieDialog
+        open={scheduleOpen}
+        onClose={() => setScheduleOpen(false)}
+        movie={movie}
+        movieId={entry.movieId}
+      />
+    )}
+    </>
   )
 }

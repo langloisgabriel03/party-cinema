@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 
+import { avatarSrc } from '@/data/avatars'
+
 // Cycled by wedge index -- distinct from the app's ink/brand palette on purpose, a wheel reads as
 // a wheel because of the color contrast between neighboring wedges.
 const WEDGE_COLORS = [
@@ -92,6 +94,10 @@ export default function RouletteWheel({ entries, spinning, winnerIndex, onSpinEn
             const end = start + wedgeAngle
             const mid = start + wedgeAngle / 2
             const labelPos = pointOnCircle(100, 100, 66, mid)
+            // Whoever put this film in, shown out near the rim of their wedge.
+            const owner = entry.wantedBy?.[0]
+            const avatarPos = pointOnCircle(100, 100, 34, mid)
+            const avatarR = n <= 4 ? 9 : n <= 8 ? 7 : 5
             return (
               <g key={entry.movieId}>
                 <path
@@ -107,10 +113,38 @@ export default function RouletteWheel({ entries, spinning, winnerIndex, onSpinEn
                   fontSize={fontSize}
                   fontWeight="600"
                   textAnchor="middle"
-                  transform={`rotate(${mid}, ${labelPos.x}, ${labelPos.y})`}
+                  // Wedges on the left half point their text back at the reader upside down --
+                  // flip those 180 so every label stays right-way-up.
+                  transform={`rotate(${mid > 90 && mid < 270 ? mid + 180 : mid}, ${labelPos.x}, ${labelPos.y})`}
                 >
                   {truncate(entry.movie?.title ?? '…', maxChars)}
                 </text>
+                {owner && (
+                  <>
+                    {/* clipPath id is per-entry: a shared one would clip every avatar to the
+                        first wedge's circle. */}
+                    <clipPath id={`avatar-clip-${entry.movieId}`}>
+                      <circle cx={avatarPos.x} cy={avatarPos.y} r={avatarR} />
+                    </clipPath>
+                    <image
+                      href={avatarSrc(owner.avatar)}
+                      x={avatarPos.x - avatarR}
+                      y={avatarPos.y - avatarR}
+                      width={avatarR * 2}
+                      height={avatarR * 2}
+                      preserveAspectRatio="xMidYMid slice"
+                      clipPath={`url(#avatar-clip-${entry.movieId})`}
+                    />
+                    <circle
+                      cx={avatarPos.x}
+                      cy={avatarPos.y}
+                      r={avatarR}
+                      fill="none"
+                      stroke="white"
+                      strokeWidth="1"
+                    />
+                  </>
+                )}
               </g>
             )
           })

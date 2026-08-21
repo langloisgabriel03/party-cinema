@@ -1,11 +1,17 @@
 import { avatarSrc } from '@/data/avatars'
 import { scoreColor } from '@/data/movieCatalog'
+import { useAppStore } from '@/store/useAppStore'
 import { usePlanStore } from '@/store/usePlanStore'
 
 /** `entry` is one grouped roulette entry from groupWatchlist(): { movieId, movie, wantedBy, addedAt }. */
 export default function RouletteCard({ entry }) {
   const { movie, wantedBy } = entry
+  const profileId = useAppStore((state) => state.currentProfileId)
   const removeFromRoulette = usePlanStore((state) => state.removeFromRoulette)
+
+  // Only your own pick is yours to pull -- everyone has a limited number of slots, so removing
+  // someone else's costs them one they can't see they've lost.
+  const isMine = wantedBy.some((profile) => profile.id === profileId)
 
   return (
     <div className="flex flex-col overflow-hidden rounded-lg bg-ink-soft">
@@ -23,14 +29,16 @@ export default function RouletteCard({ entry }) {
             {movie ? 'No poster' : '…'}
           </div>
         )}
-        <button
-          type="button"
-          onClick={() => removeFromRoulette(entry.movieId)}
-          aria-label={`Remove ${movie?.title ?? 'movie'} from the roulette`}
-          className="absolute top-1 right-1 flex min-h-9 min-w-9 cursor-pointer items-center justify-center rounded-full bg-black/60 text-sm font-bold text-neutral-200 backdrop-blur-sm hover:bg-black/80"
-        >
-          ✕
-        </button>
+        {isMine && (
+          <button
+            type="button"
+            onClick={() => removeFromRoulette(entry.movieId, profileId)}
+            aria-label={`Remove ${movie?.title ?? 'movie'} from the roulette`}
+            className="absolute top-1 right-1 flex min-h-9 min-w-9 cursor-pointer items-center justify-center rounded-full bg-black/60 text-sm font-bold text-neutral-200 backdrop-blur-sm hover:bg-black/80"
+          >
+            ✕
+          </button>
+        )}
       </div>
       <div className="flex flex-1 flex-col gap-1.5 p-2">
         <p className="line-clamp-2 text-sm leading-tight font-medium text-white">

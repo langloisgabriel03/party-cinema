@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import AppHeader from '@/components/AppHeader'
@@ -28,6 +28,7 @@ export default function Roulette() {
   const ensureMovies = useMovieCatalogStore((state) => state.ensureMovies)
 
   const [pickerOpen, setPickerOpen] = useState(false)
+  const pickerRef = useRef(null)
   const [winner, setWinner] = useState(null)
   const [spinning, setSpinning] = useState(false)
   // Frozen for the duration of a spin: the wheel animates toward a wedge *index*, so if someone
@@ -39,6 +40,16 @@ export default function Roulette() {
   useEffect(() => {
     initPlan()
   }, [initPlan])
+
+  // showModal(), not the `open` attribute: an `open` dialog renders inline in normal flow, which
+  // on desktop put the picker below the poster grid where it had to be scrolled to. showModal
+  // promotes it to the top layer (centered, with a backdrop) like every other dialog in the app.
+  useEffect(() => {
+    const dialog = pickerRef.current
+    if (!dialog) return
+    if (pickerOpen && !dialog.open) dialog.showModal()
+    else if (!pickerOpen && dialog.open) dialog.close()
+  }, [pickerOpen])
 
   const ids = useMemo(
     () => referencedMovieIds(watchlist, nightMovies).concat(rouletteEntries.map((e) => e.movie_id)),
@@ -166,7 +177,8 @@ export default function Roulette() {
 
       {pickerOpen && (
         <dialog
-          open
+          ref={pickerRef}
+          onClose={() => setPickerOpen(false)}
           onClick={(e) => {
             if (e.target === e.currentTarget) setPickerOpen(false)
           }}

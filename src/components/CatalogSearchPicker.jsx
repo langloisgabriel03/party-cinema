@@ -1,6 +1,7 @@
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 
 import { resolveSearchMatches, scoreColor } from '@/data/movieCatalog'
+import { useDragScroll } from '@/lib/useDragScroll'
 import { getMovieSearchIndex, useMovieCatalogStore } from '@/store/useMovieCatalogStore'
 
 /**
@@ -19,6 +20,7 @@ export default function CatalogSearchPicker({ onPick, excludeIds, watchlistEntri
   const [query, setQuery] = useState('')
   const deferredQuery = useDeferredValue(query)
   const isSearching = deferredQuery.trim().length > 0
+  const drag = useDragScroll()
 
   useEffect(() => {
     initMovies()
@@ -65,17 +67,27 @@ export default function CatalogSearchPicker({ onPick, excludeIds, watchlistEntri
         <p className="text-xs text-neutral-500">No matches.</p>
       )}
       {visible.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        <div
+          ref={drag.ref}
+          {...drag.handlers}
+          className="flex cursor-grab gap-2 overflow-x-auto pb-1 active:cursor-grabbing"
+        >
           {visible.map((movie) => (
             <button
               key={movie.id}
               type="button"
               title={movie.title}
               onClick={() => onPick(movie.id)}
+              draggable={false}
               className="flex w-20 shrink-0 cursor-pointer flex-col gap-0.5 overflow-hidden rounded text-left"
             >
               {movie.poster ? (
-                <img src={movie.poster} alt="" className="aspect-2/3 w-full rounded object-cover" />
+                <img
+                  src={movie.poster}
+                  alt=""
+                  draggable={false}
+                  className="aspect-2/3 w-full rounded object-cover"
+                />
               ) : (
                 <div className="flex aspect-2/3 w-full items-center justify-center rounded bg-ink-raised px-1 text-center text-[10px] text-neutral-500">
                   {movie.title}
