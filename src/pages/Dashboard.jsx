@@ -207,6 +207,7 @@ export default function Dashboard() {
           nights={nightsOnSelectedDate}
           moviesById={moviesById}
           nightMoviesByNight={nightMoviesByNight}
+          watchlistEntries={entries}
         />
       )}
     </div>

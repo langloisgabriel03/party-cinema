@@ -6,24 +6,25 @@ import { getMovieSearchIndex, useMovieCatalogStore } from '@/store/useMovieCatal
 import { usePlanStore } from '@/store/usePlanStore'
 
 /**
- * Searches the full movie catalog (not just the watchlist) -- reuses the exact same search
- * resolution as /movies (AND-combine, title-boost, year-aware parsing) so "star wars 19" behaves
- * identically here. Lazily triggers the full catalog fetch on first open, same lazy-on-demand
- * principle as Movies.jsx: nothing loads until someone is actually about to search for a film.
+ * Defaults to a slider of the shared watchlist (the likely pick, already right there) -- typing
+ * a query swaps that slider for full-catalog search results instead, reusing the exact same
+ * search resolution as /movies (AND-combine, title-boost, year-aware parsing). The catalog fetch
+ * is lazy, triggered on first open: nothing loads until someone is actually about to search.
  */
-function CatalogSearchPicker({ onPick, excludeIds }) {
+function CatalogSearchPicker({ onPick, excludeIds, watchlistEntries }) {
   const movies = useMovieCatalogStore((state) => state.movies)
   const moviesLoading = useMovieCatalogStore((state) => state.moviesLoading)
   const initMovies = useMovieCatalogStore((state) => state.initMovies)
   const [query, setQuery] = useState('')
   const deferredQuery = useDeferredValue(query)
+  const isSearching = deferredQuery.trim().length > 0
 
   useEffect(() => {
     initMovies()
   }, [initMovies])
 
-  const results = useMemo(() => {
-    if (!movies.length || !deferredQuery.trim()) return []
+  const searchResults = useMemo(() => {
+    if (!isSearching || !movies.length) return []
     const match = resolveSearchMatches(deferredQuery, movies, getMovieSearchIndex())
     if (!match) return []
     const movieById = new Map(movies.map((m) => [m.id, m]))
@@ -32,7 +33,17 @@ function CatalogSearchPicker({ onPick, excludeIds }) {
       .map(([id]) => movieById.get(id))
       .filter((movie) => movie && !excludeIds.includes(movie.id))
       .slice(0, 20)
-  }, [movies, deferredQuery, excludeIds])
+  }, [movies, deferredQuery, isSearching, excludeIds])
+
+  const watchlistMovies = useMemo(
+    () =>
+      watchlistEntries
+        .filter((entry) => entry.movie && !excludeIds.includes(entry.movieId))
+        .map((entry) => entry.movie),
+    [watchlistEntries, excludeIds]
+  )
+
+  const visible = isSearching ? searchResults : watchlistMovies
 
   return (
     <div className="flex flex-col gap-2">
@@ -41,40 +52,43 @@ function CatalogSearchPicker({ onPick, excludeIds }) {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Search the movie database…"
-        autoFocus
         className="rounded border border-neutral-700 bg-ink-raised px-3 py-2 text-sm text-white outline-none placeholder:text-neutral-500 focus:border-neutral-400"
       />
-      {moviesLoading && <p className="text-xs text-neutral-500">Loading the catalog…</p>}
-      {!moviesLoading && deferredQuery.trim() && (
+      {isSearching && moviesLoading && <p className="text-xs text-neutral-500">Loading the catalog…</p>}
+      {!isSearching && watchlistMovies.length === 0 && (
+        <p className="text-xs text-neutral-500">
+          Watchlist is empty — search above, or add movies from the search page.
+        </p>
+      )}
+      {isSearching && !moviesLoading && searchResults.length === 0 && (
+        <p className="text-xs text-neutral-500">No matches.</p>
+      )}
+      {visible.length > 0 && (
         <div className="flex gap-2 overflow-x-auto pb-1">
-          {results.length === 0 ? (
-            <p className="text-xs text-neutral-500">No matches.</p>
-          ) : (
-            results.map((movie) => (
-              <button
-                key={movie.id}
-                type="button"
-                title={movie.title}
-                onClick={() => onPick(movie.id)}
-                className="w-16 shrink-0 cursor-pointer overflow-hidden rounded"
-              >
-                {movie.poster ? (
-                  <img src={movie.poster} alt="" className="aspect-2/3 w-full object-cover" />
-                ) : (
-                  <div className="flex aspect-2/3 w-full items-center justify-center bg-ink-raised px-1 text-center text-[10px] text-neutral-500">
-                    {movie.title}
-                  </div>
-                )}
-              </button>
-            ))
-          )}
+          {visible.map((movie) => (
+            <button
+              key={movie.id}
+              type="button"
+              title={movie.title}
+              onClick={() => onPick(movie.id)}
+              className="w-16 shrink-0 cursor-pointer overflow-hidden rounded"
+            >
+              {movie.poster ? (
+                <img src={movie.poster} alt="" className="aspect-2/3 w-full object-cover" />
+              ) : (
+                <div className="flex aspect-2/3 w-full items-center justify-center bg-ink-raised px-1 text-center text-[10px] text-neutral-500">
+                  {movie.title}
+                </div>
+              )}
+            </button>
+          ))}
         </div>
       )}
     </div>
   )
 }
 
-function NightRow({ night, movieIds, moviesById, profileId }) {
+function NightRow({ night, movieIds, moviesById, profileId, watchlistEntries, onClose }) {
   const deleteNight = usePlanStore((state) => state.deleteNight)
   const addMovieToNight = usePlanStore((state) => state.addMovieToNight)
   const removeMovieFromNight = usePlanStore((state) => state.removeMovieFromNight)
@@ -130,9 +144,12 @@ function NightRow({ night, movieIds, moviesById, profileId }) {
       {pickerOpen && (
         <CatalogSearchPicker
           excludeIds={movieIds}
+          watchlistEntries={watchlistEntries}
           onPick={(movieId) => {
             addMovieToNight(night.id, movieId, profileId)
-            setPickerOpen(false)
+            // Picking a film is the whole point of opening the dialog -- close it rather than
+            // leaving the confirmation view up for the user to dismiss themselves.
+            onClose()
           }}
         />
       )}
@@ -140,7 +157,16 @@ function NightRow({ night, movieIds, moviesById, profileId }) {
   )
 }
 
-export default function NightDialog({ open, onClose, iso, dateLabel, nights, moviesById, nightMoviesByNight }) {
+export default function NightDialog({
+  open,
+  onClose,
+  iso,
+  dateLabel,
+  nights,
+  moviesById,
+  nightMoviesByNight,
+  watchlistEntries,
+}) {
   const dialogRef = useRef(null)
   const profileId = useAppStore((state) => state.currentProfileId)
   const scheduleNight = usePlanStore((state) => state.scheduleNight)
@@ -154,10 +180,12 @@ export default function NightDialog({ open, onClose, iso, dateLabel, nights, mov
   }, [open])
 
   // Straight to film search for a fresh date -- no intermediate "add a night" step. Picking a
-  // result creates the night and attaches the film in one action.
+  // result creates the night, attaches the film, and closes the dialog in one action -- the
+  // choice is done, no confirmation view to linger on.
   const handlePickForNewNight = async (movieId) => {
     const night = await scheduleNight({ scheduledFor: iso, createdBy: profileId })
     if (night) addMovieToNight(night.id, movieId, profileId)
+    onClose()
   }
 
   return (
@@ -188,6 +216,8 @@ export default function NightDialog({ open, onClose, iso, dateLabel, nights, mov
             movieIds={nightMoviesByNight.get(night.id) ?? []}
             moviesById={moviesById}
             profileId={profileId}
+            watchlistEntries={watchlistEntries}
+            onClose={onClose}
           />
         ))}
 
@@ -197,7 +227,11 @@ export default function NightDialog({ open, onClose, iso, dateLabel, nights, mov
         {nights.length === 0 && (
           <div className="flex flex-col gap-2 border-t border-neutral-800 pt-4">
             <span className="text-xs text-neutral-400">Pick a film to plan this night</span>
-            <CatalogSearchPicker excludeIds={[]} onPick={handlePickForNewNight} />
+            <CatalogSearchPicker
+              excludeIds={[]}
+              watchlistEntries={watchlistEntries}
+              onPick={handlePickForNewNight}
+            />
             <button
               type="button"
               onClick={() => scheduleNight({ scheduledFor: iso, createdBy: profileId })}
