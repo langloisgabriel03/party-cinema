@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
+import { createResilientChannel } from '@/lib/realtime'
 import { supabase, supabaseConfigured } from '@/lib/supabaseClient'
 
 /**
@@ -35,40 +36,52 @@ export const useAppStore = create(
           return
         }
 
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('id, name, avatar')
-          .order('created_at', { ascending: true })
+        const fetchProfiles = async () => {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('id, name, avatar')
+            .order('created_at', { ascending: true })
+          set({
+            profiles: data ?? [],
+            profilesLoading: false,
+            profilesError: error ? error.message : null,
+          })
+        }
+        await fetchProfiles()
 
-        set({
-          profiles: data ?? [],
-          profilesLoading: false,
-          profilesError: error ? error.message : null,
-        })
-
-        supabase
-          .channel('profiles-changes')
-          .on(
-            'postgres_changes',
-            { event: 'INSERT', schema: 'public', table: 'profiles' },
-            ({ new: row }) =>
-              set((state) =>
-                state.profiles.some((profile) => profile.id === row.id)
-                  ? state
-                  : { profiles: [...state.profiles, row] }
+        // Reconnects after the phone sleeps, same as the other two stores -- this channel used
+        // to be subscribed once and never revived, so a profile added or a picture changed while
+        // the app was backgrounded stayed invisible until a reload.
+        createResilientChannel({
+          name: 'profiles-changes',
+          bind: (channel) =>
+            channel
+              .on(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'profiles' },
+                ({ new: row }) =>
+                  set((state) =>
+                    state.profiles.some((profile) => profile.id === row.id)
+                      ? state
+                      : { profiles: [...state.profiles, row] }
+                  )
               )
-          )
-          .on(
-            'postgres_changes',
-            { event: 'UPDATE', schema: 'public', table: 'profiles' },
-            // Without this, a changed profile picture wouldn't reach anyone else's open tab until
-            // they reloaded. `new` is the complete post-update row, so replace-by-id is correct.
-            ({ new: row }) =>
-              set((state) => ({
-                profiles: state.profiles.map((profile) => (profile.id === row.id ? row : profile)),
-              }))
-          )
-          .subscribe()
+              .on(
+                'postgres_changes',
+                { event: 'UPDATE', schema: 'public', table: 'profiles' },
+                // Without this, a changed profile picture wouldn't reach anyone else's open tab
+                // until they reloaded. `new` is the complete post-update row, so replace-by-id
+                // is correct.
+                ({ new: row }) =>
+                  set((state) => ({
+                    profiles: state.profiles.map((profile) => (profile.id === row.id ? row : profile)),
+                  }))
+              ),
+          // Re-fetch on every (re)connect to catch anything missed while the socket was down.
+          onSubscribed: fetchProfiles,
+          // No onDown: the profile list is near-static and already on screen, so an outage here
+          // has nothing useful to tell the user.
+        }).start()
       },
 
       addProfile: async (name, avatar) => {

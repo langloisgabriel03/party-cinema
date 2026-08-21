@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 
+import { createResilientChannel } from '@/lib/realtime'
 import { supabase, supabaseConfigured } from '@/lib/supabaseClient'
 
 /**
@@ -12,7 +13,10 @@ import { supabase, supabaseConfigured } from '@/lib/supabaseClient'
  * exclusion list. Not persisted here at all -- refetched on load/reconnect, like the movie catalog.
  */
 let subscribed = false
-let channel = null
+
+// Compared by identity when clearing, so a reconnect only clears its own message and never wipes
+// a real error (a failed fetch) that happened to be showing.
+const RECONNECTING = 'Realtime connection lost — retrying…'
 
 function indexByFirst(items, firstKey, secondKey) {
   const map = new Map()
@@ -65,19 +69,9 @@ async function fetchRouletteEntries() {
   return data
 }
 
-/**
- * Tears down any existing channel and opens a fresh one. Called on first load AND on every
- * refocus (see initPlan below) -- a CHANNEL_ERROR after mobile Safari kills the socket on
- * backgrounding does not reliably self-heal on its own; the old channel object can be left in a
- * dead state that only a genuine page reload used to clear. Rebuilding from scratch on refocus is
- * the same fix without the reload, and it's cheap: SUBSCRIBED triggers refreshPlan(), a full
- * idempotent replace, so a rebuild on an already-healthy channel just re-fetches harmlessly.
- */
-function connectChannel(set, get) {
-  if (channel) supabase.removeChannel(channel)
-
-  channel = supabase
-    .channel('plan-changes')
+/** Wires every table handler onto a channel. Reconnection is createResilientChannel's job. */
+function bindPlanHandlers(set, get, channel) {
+  return channel
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'watchlist_items' }, ({ new: row }) => {
       // Supabase echoes our own writes back -- every handler must be idempotent.
       const current = get().watchlist
@@ -131,10 +125,6 @@ function connectChannel(set, get) {
         ),
       })
     })
-    .subscribe((status) => {
-      if (status === 'SUBSCRIBED') get().refreshPlan()
-      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') set({ planError: 'Realtime connection lost.' })
-    })
 }
 
 export const usePlanStore = create((set, get) => ({
@@ -174,18 +164,28 @@ export const usePlanStore = create((set, get) => ({
       return
     }
 
-    // Subscribe BEFORE fetching (unlike useAppStore's profiles subscription): the initial fetch
-    // happens in the SUBSCRIBED callback inside connectChannel, which fires on first connect AND
-    // every auto-reconnect -- closing both the "event landed between fetch and subscribe" window
-    // and the "phone backgrounded, socket died" drift. Safe because refreshPlan() is a full replace.
-    connectChannel(set, get)
+    // Fetch immediately, not only from the SUBSCRIBED callback below. Realtime is a live-update
+    // luxury; the REST read is what actually puts data on screen. Hanging the only fetch off the
+    // subscription meant that if the socket never came up (blocked network, captive wifi) the
+    // app sat on "Loading movie night plans…" forever with an empty dashboard, even though every
+    // REST call would have worked.
+    get().refreshPlan()
 
-    // iOS Safari kills WebSockets aggressively on backgrounding, and the resulting CHANNEL_ERROR
-    // doesn't reliably self-heal -- rebuilding the channel from scratch (not just refetching data)
-    // is what used to require a manual page reload to fix.
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') connectChannel(set, get)
-    })
+    // Fetching again on SUBSCRIBED -- which fires on first connect AND every reconnect -- closes
+    // both the "event landed between fetch and subscribe" window and the "phone was asleep,
+    // socket died" drift. Safe to run repeatedly because refreshPlan is a full replace.
+    createResilientChannel({
+      name: 'plan-changes',
+      bind: (channel) => bindPlanHandlers(set, get, channel),
+      onSubscribed: () => {
+        // Clear our own stale "connection lost" the moment we're actually back.
+        if (get().planError === RECONNECTING) set({ planError: null })
+        get().refreshPlan()
+      },
+      // Only after several consecutive failures -- a brief wobble while the radio wakes up is
+      // normal and self-heals, and flashing a banner at that is what made this feel broken.
+      onDown: () => set({ planError: RECONNECTING }),
+    }).start()
   },
 
   toggleWatchlist: async (movieId, profileId) => {

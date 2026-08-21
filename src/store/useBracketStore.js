@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 
 import { buildMatches, nextSlot } from '@/data/bracket'
+import { createResilientChannel } from '@/lib/realtime'
 import { supabase, supabaseConfigured } from '@/lib/supabaseClient'
 
 /**
@@ -9,7 +10,10 @@ import { supabase, supabaseConfigured } from '@/lib/supabaseClient'
  * consumes any of it, and the two domains share no state.
  */
 let subscribed = false
-let channel = null
+
+// Compared by identity when clearing, so a reconnect only clears its own message and never
+// wipes a real error (a failed fetch, a missing table) that happened to be showing.
+const RECONNECTING = 'Realtime connection lost — retrying…'
 
 async function fetchLatestBracket() {
   const { data, error } = await supabase
@@ -22,11 +26,9 @@ async function fetchLatestBracket() {
   return data
 }
 
-function connectChannel(set, get) {
-  if (channel) supabase.removeChannel(channel)
-
-  channel = supabase
-    .channel('bracket-changes')
+/** Wires the table handlers; reconnection is createResilientChannel's job. */
+function bindBracketHandlers(set, get, channel) {
+  return channel
     .on('postgres_changes', { event: '*', schema: 'public', table: 'brackets' }, () => {
       get().refreshBracket()
     })
@@ -50,10 +52,6 @@ function connectChannel(set, get) {
       const index = current.findIndex((v) => v.match_id === row.match_id && v.profile_id === row.profile_id)
       if (index === -1) set({ votes: [...current, row] })
       else set({ votes: current.map((v, i) => (i === index ? row : v)) })
-    })
-    .subscribe((status) => {
-      if (status === 'SUBSCRIBED') get().refreshBracket()
-      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') set({ bracketError: 'Realtime connection lost.' })
     })
 }
 
@@ -116,10 +114,19 @@ export const useBracketStore = create((set, get) => ({
       set({ bracketLoading: false, bracketError: 'Supabase is not configured yet.' })
       return
     }
-    connectChannel(set, get)
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') connectChannel(set, get)
-    })
+    // Same reasoning as usePlanStore: the REST read is what puts the bracket on screen, so it
+    // must not depend on the socket coming up.
+    get().refreshBracket()
+
+    createResilientChannel({
+      name: 'bracket-changes',
+      bind: (channel) => bindBracketHandlers(set, get, channel),
+      onSubscribed: () => {
+        if (get().bracketError === RECONNECTING) set({ bracketError: null })
+        get().refreshBracket()
+      },
+      onDown: () => set({ bracketError: RECONNECTING }),
+    }).start()
   },
 
   /** Replaces any existing bracket -- there's only ever one tournament running. */
