@@ -1,7 +1,9 @@
 # Party Cinema 🍿
 
 Plan movie nights with friends: everyone browses a 5,851-movie catalog and adds what they want to watch,
-then a calendar schedules a night and (optionally) picks a film from the list.
+then a calendar schedules a night and (optionally) picks a film from the list. Installable as a home
+screen app, with a push notification when someone books a night — see `src/lib/push.js` and
+`supabase/functions/notify-night.ts`.
 
 **Live:** https://tooning.co
 
@@ -43,11 +45,15 @@ From the Supabase dashboard → **Settings → API**:
 ```
 VITE_SUPABASE_URL=https://xxxxxxxx.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJ...
+VITE_VAPID_PUBLIC_KEY=BB...   # public half of the web push keypair -- see src/lib/push.js's header
 ```
 
 Put these in a local `.env` (gitignored) for `npm run dev`/`npm run build`. In CI they come from repo
-**Settings → Secrets and variables → Actions**, secrets named exactly `VITE_SUPABASE_URL` and
-`VITE_SUPABASE_ANON_KEY`, referenced in `.github/workflows/deploy.yml`.
+**Settings → Secrets and variables → Actions**, secrets named exactly `VITE_SUPABASE_URL`,
+`VITE_SUPABASE_ANON_KEY`, and `VITE_VAPID_PUBLIC_KEY`, referenced in `.github/workflows/deploy.yml`.
+A GitHub Actions secret only takes effect on the **next** build — adding one doesn't retroactively
+change the currently-deployed bundle, so it needs a push (or a manual **Actions → Deploy to GitHub
+Pages → Run workflow**) afterward.
 
 The anon key is meant to be public (it ships in the JS bundle) — access control is enforced by
 **Row Level Security** policies on the Supabase tables, not by keeping the key secret. `watchlist_items`
@@ -67,6 +73,7 @@ src/
   lib/
     supabaseClient.js              Supabase client, degrades gracefully if env vars are missing
     movies.js                      fetchAllMovies() -- paginates past PostgREST's 1000-row cap
+    push.js                        web push subscribe/unsubscribe, iOS/standalone detection, SW registration
   store/
     useAppStore.js                 profiles (shared) + currentProfileId (local, the only persisted field)
     useMovieCatalogStore.js        the 5,851-row catalog + MiniSearch index + moviesById/ensureMovies
@@ -86,12 +93,20 @@ src/
     AppHeader.jsx, ProfileCard.jsx, AddProfileDialog.jsx
     MovieCard.jsx, MovieFilterDialog.jsx, WatchlistButton.jsx
     MonthCalendar.jsx, NightDialog.jsx, WatchlistCard.jsx, UpcomingNights.jsx
+    PushPrompt.jsx                 dismissible "turn on notifications" row, iOS "add to home screen" hint
+public/
+  manifest.webmanifest, icons/, apple-touch-icon.png    PWA install shell
+  sw.js                           cache-free service worker -- push -> showNotification only
 supabase/
   schema.sql            profiles
   movies_schema.sql      read-only movie catalog, synced from a separate Python scraper (rt-dashboard)
   plan_schema.sql        watchlist_items + nights, RLS, realtime, the deleted_rows undo trigger
   plan_schema_v2.sql     migration: night_movies join table (a night can hold >1 film), drops
                           nights.movie_id/start_time -- nights are day-only, apply after plan_schema.sql
+  push_schema.sql         push_subscriptions (RLS on, zero policies -- see the comment in the file for
+                          why) + security-definer RPCs + the night_notifications replay guard
+  functions/notify-night.ts   sends the push -- deployed by pasting into the Supabase dashboard,
+                          not the CLI; kept here for version control
 ```
 
 Deploy details that are easy to break:
