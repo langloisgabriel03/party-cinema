@@ -1,20 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import AppHeader from '@/components/AppHeader'
 import CatalogSearchPicker from '@/components/CatalogSearchPicker'
 import RouletteCard from '@/components/RouletteCard'
-import { referencedMovieIds, groupWatchlist } from '@/data/plan'
+import RouletteWheel from '@/components/RouletteWheel'
+import { groupWatchlist, referencedMovieIds } from '@/data/plan'
 import { useAppStore, useCurrentProfile } from '@/store/useAppStore'
 import { useMovieCatalogStore } from '@/store/useMovieCatalogStore'
 import { usePlanStore } from '@/store/usePlanStore'
 
 const MAX_PER_PROFILE = 2
-// Full loops before landing on the winner, plus the deceleration curve -- long enough to read as
-// a genuine spin, short enough not to feel like a stall.
-const SPIN_LOOPS = 3
-const SPIN_START_DELAY = 90
-const SPIN_DECAY = 1.12
 
 export default function Roulette() {
   const profile = useCurrentProfile()
@@ -32,16 +28,17 @@ export default function Roulette() {
   const ensureMovies = useMovieCatalogStore((state) => state.ensureMovies)
 
   const [pickerOpen, setPickerOpen] = useState(false)
-  const [highlightedId, setHighlightedId] = useState(null)
   const [winner, setWinner] = useState(null)
   const [spinning, setSpinning] = useState(false)
-  const spinTimeout = useRef(null)
+  // Frozen for the duration of a spin: the wheel animates toward a wedge *index*, so if someone
+  // adds or removes a movie mid-spin the wedges would re-slice underneath it and the pointer
+  // would land on a different film than the one picked. Snapshotting keeps them in lockstep.
+  const [wheelPool, setWheelPool] = useState(null)
+  const [winnerIndex, setWinnerIndex] = useState(null)
 
   useEffect(() => {
     initPlan()
   }, [initPlan])
-
-  useEffect(() => () => clearTimeout(spinTimeout.current), [])
 
   const ids = useMemo(
     () => referencedMovieIds(watchlist, nightMovies).concat(rouletteEntries.map((e) => e.movie_id)),
@@ -60,35 +57,24 @@ export default function Roulette() {
     [rouletteEntries, moviesById, profiles]
   )
 
-  const ownEntryCount = profile
-    ? rouletteEntries.filter((e) => e.added_by === profile.id).length
-    : 0
+  const ownEntries = profile ? rouletteEntries.filter((e) => e.added_by === profile.id) : []
+  const ownEntryCount = ownEntries.length
   const atCap = ownEntryCount >= MAX_PER_PROFILE
-  const ownExcludeIds = profile
-    ? rouletteEntries.filter((e) => e.added_by === profile.id).map((e) => e.movie_id)
-    : []
+  const ownExcludeIds = ownEntries.map((e) => e.movie_id)
+
+  const displayPool = wheelPool ?? pool
 
   const spin = () => {
     if (pool.length < 2 || spinning) return
     setWinner(null)
+    setWheelPool(pool)
+    setWinnerIndex(Math.floor(Math.random() * pool.length))
     setSpinning(true)
-    const winnerIndex = Math.floor(Math.random() * pool.length)
-    const totalTicks = SPIN_LOOPS * pool.length + winnerIndex + 1
+  }
 
-    let tick = 0
-    let delay = SPIN_START_DELAY
-    const step = () => {
-      setHighlightedId(pool[tick % pool.length].movieId)
-      tick += 1
-      if (tick >= totalTicks) {
-        setSpinning(false)
-        setWinner(pool[winnerIndex])
-        return
-      }
-      delay *= SPIN_DECAY
-      spinTimeout.current = setTimeout(step, delay)
-    }
-    step()
+  const handleSpinEnd = () => {
+    setSpinning(false)
+    if (wheelPool && winnerIndex != null) setWinner(wheelPool[winnerIndex])
   }
 
   if (!profile) return null
@@ -112,8 +98,15 @@ export default function Roulette() {
           <p className="mb-4 rounded-lg bg-ink-soft p-3 text-sm text-red-400">{planError}</p>
         )}
 
-        {winner && (
-          <div className="mb-4 flex items-center gap-4 rounded-xl bg-brand/20 p-4">
+        <RouletteWheel
+          entries={displayPool}
+          spinning={spinning}
+          winnerIndex={winnerIndex}
+          onSpinEnd={handleSpinEnd}
+        />
+
+        {winner && !spinning && (
+          <div className="mx-auto mt-4 flex max-w-md items-center gap-4 rounded-xl bg-brand/20 p-4">
             {winner.movie?.poster && (
               <img src={winner.movie.poster} alt="" className="aspect-2/3 w-16 shrink-0 rounded object-cover" />
             )}
@@ -132,12 +125,12 @@ export default function Roulette() {
           </div>
         )}
 
-        <div className="mb-6 flex flex-wrap items-center gap-3">
+        <div className="my-6 flex flex-wrap items-center justify-center gap-3">
           <button
             type="button"
             onClick={spin}
             disabled={pool.length < 2 || spinning}
-            className="cursor-pointer rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-40"
+            className="cursor-pointer rounded-lg bg-brand px-6 py-3 text-base font-semibold text-white transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-40"
           >
             {spinning ? 'Spinning…' : '🎰 Spin'}
           </button>
@@ -146,28 +139,26 @@ export default function Roulette() {
             onClick={() => setPickerOpen(true)}
             disabled={atCap}
             title={atCap ? `You've already added ${MAX_PER_PROFILE} — remove one to add another` : undefined}
-            className="cursor-pointer rounded-lg border border-neutral-700 bg-ink-raised px-4 py-2.5 text-sm text-white transition-colors hover:border-neutral-400 hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
+            className="cursor-pointer rounded-lg border border-neutral-700 bg-ink-raised px-4 py-3 text-sm text-white transition-colors hover:border-neutral-400 hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            + Add a movie
+            + Add a movie ({ownEntryCount}/{MAX_PER_PROFILE})
           </button>
-          <span className="text-sm text-neutral-500">
-            You&rsquo;ve added {ownEntryCount}/{MAX_PER_PROFILE}
-          </span>
-          {pool.length < 2 && (
-            <span className="text-sm text-neutral-500">Add at least 2 movies to spin.</span>
-          )}
         </div>
+
+        {pool.length < 2 && !planLoading && (
+          <p className="pb-4 text-center text-sm text-neutral-500">Add at least 2 movies to spin.</p>
+        )}
 
         {planLoading ? (
           <p className="text-neutral-500">Loading…</p>
         ) : pool.length === 0 ? (
-          <p className="text-sm text-neutral-500">
+          <p className="text-center text-sm text-neutral-500">
             Nobody&rsquo;s added a movie to the roulette yet — everyone can add up to {MAX_PER_PROFILE}.
           </p>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
             {pool.map((entry) => (
-              <RouletteCard key={entry.movieId} entry={entry} highlighted={highlightedId === entry.movieId} />
+              <RouletteCard key={entry.movieId} entry={entry} />
             ))}
           </div>
         )}
@@ -192,12 +183,21 @@ export default function Roulette() {
                 ✕
               </button>
             </div>
+            <p className="text-xs text-neutral-400">
+              You&rsquo;ve added {ownEntryCount} of {MAX_PER_PROFILE}
+              {ownEntryCount < MAX_PER_PROFILE - 1
+                ? ' — pick another, or close when you’re done.'
+                : ''}
+            </p>
             <CatalogSearchPicker
               excludeIds={ownExcludeIds}
               watchlistEntries={watchlistEntries}
-              onPick={(movieId) => {
-                addToRoulette(movieId, profile.id)
-                setPickerOpen(false)
+              onPick={async (movieId) => {
+                await addToRoulette(movieId, profile.id)
+                // Unlike NightDialog (one film, always close on pick), a person gets two picks
+                // here -- so only close once they've used the last one, otherwise leave it open
+                // to pick again and let them dismiss it themselves.
+                if (ownEntryCount + 1 >= MAX_PER_PROFILE) setPickerOpen(false)
               }}
             />
           </div>

@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Navigate, RouterProvider, createBrowserRouter } from 'react-router-dom'
 
+import Bracket from '@/pages/Bracket'
 import Dashboard from '@/pages/Dashboard'
 import Games from '@/pages/Games'
 import Movies from '@/pages/Movies'
@@ -53,6 +54,14 @@ const router = createBrowserRouter(
       element: (
         <RequireProfile>
           <Roulette />
+        </RequireProfile>
+      ),
+    },
+    {
+      path: '/bracket',
+      element: (
+        <RequireProfile>
+          <Bracket />
         </RequireProfile>
       ),
     },

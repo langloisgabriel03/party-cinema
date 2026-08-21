@@ -3,16 +3,12 @@ import { scoreColor } from '@/data/movieCatalog'
 import { usePlanStore } from '@/store/usePlanStore'
 
 /** `entry` is one grouped roulette entry from groupWatchlist(): { movieId, movie, wantedBy, addedAt }. */
-export default function RouletteCard({ entry, highlighted }) {
+export default function RouletteCard({ entry }) {
   const { movie, wantedBy } = entry
   const removeFromRoulette = usePlanStore((state) => state.removeFromRoulette)
 
   return (
-    <div
-      className={`flex flex-col overflow-hidden rounded-lg bg-ink-soft transition-shadow ${
-        highlighted ? 'ring-4 ring-brand' : ''
-      }`}
-    >
+    <div className="flex flex-col overflow-hidden rounded-lg bg-ink-soft">
       <div className="relative aspect-2/3 w-full overflow-hidden bg-ink-raised">
         {movie?.poster ? (
           <img

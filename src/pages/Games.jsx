@@ -33,16 +33,19 @@ export default function Games() {
             </div>
           </Link>
 
-          <div className="flex items-center gap-4 rounded-xl bg-ink-soft p-4 opacity-50">
+          <Link
+            to="/bracket"
+            className="flex items-center gap-4 rounded-xl bg-ink-soft p-4 transition-colors hover:bg-ink-raised"
+          >
             <span className="text-3xl">🏆</span>
             <div>
               <p className="text-lg font-semibold">Knockout Bracket</p>
               <p className="text-sm text-neutral-400">
-                Coming soon — an auto-generated bracket from the watchlist, head-to-head votes until
-                one champion remains.
+                A tournament seeded from the watchlist — vote on each head-to-head until one
+                champion remains.
               </p>
             </div>
-          </div>
+          </Link>
         </div>
       </main>
     </div>
