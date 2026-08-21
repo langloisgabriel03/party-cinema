@@ -33,16 +33,22 @@ self.addEventListener('push', (event) => {
     payload = {}
   }
 
+  // The film's poster, when notify-night found one for the night.
+  const poster = payload.image
+
   event.waitUntil(
     self.registration.showNotification(payload.title || 'Party Cinema', {
       body: payload.body || 'A movie night was booked.',
-      icon: '/icons/icon-192.png', // ignored on iOS -- it always uses the Home Screen icon
-      badge: '/icons/icon-192.png', // Android status bar only
-      // Large image shown in the expanded notification (Android/desktop Chrome; iOS Safari's
-      // web push doesn't render `image` at all, so this is a no-op there, not a bug). Only set
-      // when the payload actually has one -- an empty/undefined src shows a broken-image icon
-      // instead of just omitting the picture.
-      ...(payload.image ? { image: payload.image } : {}),
+      // Thumbnail in the COLLAPSED notification -- the poster, so the short form people actually
+      // see on the lock screen shows the film. Falling back to the app icon only when there's no
+      // poster: using it unconditionally rendered our mark twice, once here and once as the
+      // badge below. Ignored on iOS either way -- it always uses the Home Screen icon.
+      icon: poster || '/icons/icon-192.png',
+      badge: '/icons/icon-192.png', // small monochrome mark, Android status bar only
+      // Large image in the EXPANDED notification (Android/desktop Chrome; iOS Safari's web push
+      // doesn't render `image` at all, so this is a no-op there, not a bug). Only set when there
+      // is one -- an empty src shows a broken-image icon instead of just omitting the picture.
+      ...(poster ? { image: poster } : {}),
       tag: payload.tag || 'party-cinema', // same night replaces rather than stacks
       data: { url: payload.url || '/dashboard' },
     })
