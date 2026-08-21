@@ -37,7 +37,9 @@ export function roundName(round, totalRounds) {
   if (fromEnd === 0) return 'Final'
   if (fromEnd === 1) return 'Semi-finals'
   if (fromEnd === 2) return 'Quarter-finals'
-  return `Round ${round}`
+  // Named by how many are still in it (2^(fromEnd+1)) rather than "Round 1", which says nothing
+  // about how far in you are.
+  return `Round of ${2 ** (fromEnd + 1)}`
 }
 
 /**

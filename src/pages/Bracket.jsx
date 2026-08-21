@@ -1,70 +1,22 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 
 import AppHeader from '@/components/AppHeader'
+import BattleMatchup from '@/components/BattleMatchup'
+import BracketTree from '@/components/BracketTree'
 import {
   bracketSizeFor,
   currentMatch,
   decideWinner,
   forceWinner,
-  matchesByRound,
-  roundCount,
   roundName,
   tallyVotes,
 } from '@/data/bracket'
-import { avatarSrc } from '@/data/avatars'
-import { scoreColor } from '@/data/movieCatalog'
 import { groupWatchlist, referencedMovieIds } from '@/data/plan'
 import { useAppStore, useCurrentProfile } from '@/store/useAppStore'
 import { useBracketStore } from '@/store/useBracketStore'
 import { useMovieCatalogStore } from '@/store/useMovieCatalogStore'
 import { usePlanStore } from '@/store/usePlanStore'
-
-function MoviePick({ movie, votes, voters, selected, disabled, onPick }) {
-  return (
-    <button
-      type="button"
-      onClick={onPick}
-      disabled={disabled}
-      className={`flex flex-1 cursor-pointer flex-col gap-2 rounded-lg border-2 p-3 text-left transition-colors disabled:cursor-default ${
-        selected ? 'border-brand bg-brand/10' : 'border-neutral-800 bg-ink-soft hover:border-neutral-600'
-      }`}
-    >
-      {movie?.poster ? (
-        <img src={movie.poster} alt="" className="aspect-2/3 w-full rounded object-cover" />
-      ) : (
-        <div className="flex aspect-2/3 w-full items-center justify-center rounded bg-ink-raised px-2 text-center text-xs text-neutral-500">
-          {movie?.title ?? '…'}
-        </div>
-      )}
-      <p className="line-clamp-2 text-sm font-medium text-white">{movie?.title ?? 'Loading…'}</p>
-      {movie && (
-        <p className="flex items-center gap-1.5 text-xs font-semibold">
-          <span className={scoreColor(movie.tomatometer)}>
-            🍅{movie.tomatometer != null ? `${movie.tomatometer}%` : '—'}
-          </span>
-          <span className={scoreColor(movie.audience_score)}>
-            🍿{movie.audience_score != null ? `${movie.audience_score}%` : '—'}
-          </span>
-        </p>
-      )}
-      <div className="flex items-center gap-1.5">
-        <span className="text-sm font-bold text-white">{votes}</span>
-        <div className="flex -space-x-2">
-          {voters.map((profile) => (
-            <img
-              key={profile.id}
-              src={avatarSrc(profile.avatar)}
-              alt=""
-              title={profile.name}
-              className="size-6 rounded-full border-2 border-ink-soft object-cover"
-            />
-          ))}
-        </div>
-      </div>
-    </button>
-  )
-}
 
 export default function Bracket() {
   const profile = useCurrentProfile()
@@ -87,7 +39,6 @@ export default function Bracket() {
 
   const moviesById = useMovieCatalogStore((state) => state.moviesById)
   const ensureMovies = useMovieCatalogStore((state) => state.ensureMovies)
-  const [showFullTree, setShowFullTree] = useState(false)
 
   useEffect(() => {
     initPlan()
@@ -195,32 +146,19 @@ export default function Bracket() {
             )}
 
             {active && (
-              <section className="flex flex-col gap-3">
-                <div className="flex items-baseline justify-between">
-                  <h2 className="text-sm font-semibold tracking-wide text-neutral-400 uppercase">
-                    {roundName(active.round, totalRounds)} — vote now
-                  </h2>
-                  <span className="text-xs text-neutral-500">
-                    {[...counts.values()].reduce((a, b) => a + b, 0)}/{profiles.length} voted
-                  </span>
-                </div>
-                <div className="flex items-stretch gap-3">
-                  <MoviePick
-                    movie={moviesById.get(active.movie_a)}
-                    votes={counts.get(active.movie_a) ?? 0}
-                    voters={votersFor(active.movie_a)}
-                    selected={myVote?.movie_id === active.movie_a}
-                    onPick={() => castVote(active.id, active.movie_a, profile.id)}
-                  />
-                  <div className="flex items-center text-sm font-bold text-neutral-600">VS</div>
-                  <MoviePick
-                    movie={moviesById.get(active.movie_b)}
-                    votes={counts.get(active.movie_b) ?? 0}
-                    voters={votersFor(active.movie_b)}
-                    selected={myVote?.movie_id === active.movie_b}
-                    onPick={() => castVote(active.id, active.movie_b, profile.id)}
-                  />
-                </div>
+              <>
+                <BattleMatchup
+                  match={active}
+                  moviesById={moviesById}
+                  countA={counts.get(active.movie_a) ?? 0}
+                  countB={counts.get(active.movie_b) ?? 0}
+                  votersA={votersFor(active.movie_a)}
+                  votersB={votersFor(active.movie_b)}
+                  myVote={myVote?.movie_id}
+                  onVote={(movieId) => castVote(active.id, movieId, profile.id)}
+                  roundLabel={`${roundName(active.round, totalRounds)} — vote now`}
+                  voterCount={profiles.length}
+                />
                 <button
                   type="button"
                   onClick={() => {
@@ -232,45 +170,14 @@ export default function Bracket() {
                 >
                   Skip waiting — decide with current votes
                 </button>
-              </section>
+              </>
             )}
 
-            <div className="flex flex-col gap-3">
-              <button
-                type="button"
-                onClick={() => setShowFullTree((v) => !v)}
-                className="cursor-pointer self-start text-sm text-brand hover:text-brand-hover"
-              >
-                {showFullTree ? 'Hide full bracket' : 'Show full bracket'}
-              </button>
-
-              {showFullTree && (
-                <div className="flex gap-4 overflow-x-auto pb-2">
-                  {matchesByRound(matches).map(([round, roundMatches]) => (
-                    <div key={round} className="flex min-w-40 flex-col gap-2">
-                      <p className="text-xs font-semibold tracking-wide text-neutral-500 uppercase">
-                        {roundName(round, totalRounds)}
-                      </p>
-                      {roundMatches.map((match) => (
-                        <div key={match.id} className="flex flex-col gap-1 rounded-lg bg-ink-soft p-2 text-xs">
-                          {[match.movie_a, match.movie_b].map((movieId, i) => (
-                            <p
-                              key={i}
-                              className={`truncate ${
-                                match.winner === movieId && movieId
-                                  ? 'font-semibold text-brand'
-                                  : 'text-neutral-400'
-                              }`}
-                            >
-                              {movieId ? (moviesById.get(movieId)?.title ?? '…') : '—'}
-                            </p>
-                          ))}
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              )}
+            <div className="flex flex-col gap-3 border-t border-neutral-800 pt-5">
+              <h2 className="text-sm font-semibold tracking-wide text-neutral-400 uppercase">
+                The bracket
+              </h2>
+              <BracketTree matches={matches} moviesById={moviesById} activeMatchId={active?.id} />
             </div>
 
             <button
