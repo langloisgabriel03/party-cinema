@@ -73,7 +73,10 @@ export default function Dashboard() {
   return (
     <div className="flex min-h-dvh flex-col bg-ink text-white">
       <AppHeader>
-        <Link to="/movies" className="text-sm text-neutral-400 transition-colors hover:text-white">
+        <Link
+          to="/movies"
+          className="animate-nudge rounded-lg border border-neutral-700 bg-ink-raised px-4 py-2 text-base font-semibold text-white transition-colors hover:border-neutral-400 hover:bg-neutral-700"
+        >
           Movies
         </Link>
         <button
@@ -202,7 +205,6 @@ export default function Dashboard() {
           iso={selectedDate}
           dateLabel={formatNightDate(selectedDate)}
           nights={nightsOnSelectedDate}
-          watchlistEntries={entries}
           moviesById={moviesById}
           nightMoviesByNight={nightMoviesByNight}
         />

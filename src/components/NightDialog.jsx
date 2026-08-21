@@ -1,63 +1,92 @@
-import { useEffect, useRef, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 
+import { resolveSearchMatches } from '@/data/movieCatalog'
 import { useAppStore } from '@/store/useAppStore'
+import { getMovieSearchIndex, useMovieCatalogStore } from '@/store/useMovieCatalogStore'
 import { usePlanStore } from '@/store/usePlanStore'
 
-function FilmPicker({ watchlistEntries, onPick }) {
-  if (watchlistEntries.length === 0) {
-    return (
-      <p className="text-xs text-neutral-500">
-        Watchlist is empty — add movies from the search page first.
-      </p>
-    )
-  }
+/**
+ * Searches the full movie catalog (not just the watchlist) -- reuses the exact same search
+ * resolution as /movies (AND-combine, title-boost, year-aware parsing) so "star wars 19" behaves
+ * identically here. Lazily triggers the full catalog fetch on first open, same lazy-on-demand
+ * principle as Movies.jsx: nothing loads until someone is actually about to search for a film.
+ */
+function CatalogSearchPicker({ onPick, excludeIds }) {
+  const movies = useMovieCatalogStore((state) => state.movies)
+  const moviesLoading = useMovieCatalogStore((state) => state.moviesLoading)
+  const initMovies = useMovieCatalogStore((state) => state.initMovies)
+  const [query, setQuery] = useState('')
+  const deferredQuery = useDeferredValue(query)
+
+  useEffect(() => {
+    initMovies()
+  }, [initMovies])
+
+  const results = useMemo(() => {
+    if (!movies.length || !deferredQuery.trim()) return []
+    const match = resolveSearchMatches(deferredQuery, movies, getMovieSearchIndex())
+    if (!match) return []
+    const movieById = new Map(movies.map((m) => [m.id, m]))
+    return [...match.order.entries()]
+      .sort((a, b) => a[1] - b[1])
+      .map(([id]) => movieById.get(id))
+      .filter((movie) => movie && !excludeIds.includes(movie.id))
+      .slice(0, 20)
+  }, [movies, deferredQuery, excludeIds])
+
   return (
-    <div className="flex gap-2 overflow-x-auto pb-1">
-      {watchlistEntries.map((entry) => (
-        <button
-          key={entry.movieId}
-          type="button"
-          title={entry.movie?.title}
-          onClick={() => onPick(entry.movieId)}
-          className="w-16 shrink-0 cursor-pointer overflow-hidden rounded"
-        >
-          {entry.movie?.poster ? (
-            <img src={entry.movie.poster} alt="" className="aspect-2/3 w-full object-cover" />
+    <div className="flex flex-col gap-2">
+      <input
+        type="search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search the movie database…"
+        autoFocus
+        className="rounded border border-neutral-700 bg-ink-raised px-3 py-2 text-sm text-white outline-none placeholder:text-neutral-500 focus:border-neutral-400"
+      />
+      {moviesLoading && <p className="text-xs text-neutral-500">Loading the catalog…</p>}
+      {!moviesLoading && deferredQuery.trim() && (
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {results.length === 0 ? (
+            <p className="text-xs text-neutral-500">No matches.</p>
           ) : (
-            <div className="flex aspect-2/3 w-full items-center justify-center bg-ink-raised px-1 text-center text-[10px] text-neutral-500">
-              {entry.movie?.title ?? '…'}
-            </div>
+            results.map((movie) => (
+              <button
+                key={movie.id}
+                type="button"
+                title={movie.title}
+                onClick={() => onPick(movie.id)}
+                className="w-16 shrink-0 cursor-pointer overflow-hidden rounded"
+              >
+                {movie.poster ? (
+                  <img src={movie.poster} alt="" className="aspect-2/3 w-full object-cover" />
+                ) : (
+                  <div className="flex aspect-2/3 w-full items-center justify-center bg-ink-raised px-1 text-center text-[10px] text-neutral-500">
+                    {movie.title}
+                  </div>
+                )}
+              </button>
+            ))
           )}
-        </button>
-      ))}
+        </div>
+      )}
     </div>
   )
 }
 
-function NightRow({ night, movieIds, watchlistEntries, moviesById, profileId }) {
-  const updateNight = usePlanStore((state) => state.updateNight)
+function NightRow({ night, movieIds, moviesById, profileId }) {
   const deleteNight = usePlanStore((state) => state.deleteNight)
   const addMovieToNight = usePlanStore((state) => state.addMovieToNight)
   const removeMovieFromNight = usePlanStore((state) => state.removeMovieFromNight)
   const [pickerOpen, setPickerOpen] = useState(false)
 
-  // Already-attached films don't need to show again in the "add another" picker.
-  const pickableEntries = watchlistEntries.filter((entry) => !movieIds.includes(entry.movieId))
-
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-neutral-800 p-3">
-      <div className="flex items-center justify-between gap-2">
-        <input
-          type="text"
-          value={night.note ?? ''}
-          onChange={(e) => updateNight(night.id, { note: e.target.value || null })}
-          placeholder="Note (optional)"
-          className="min-w-0 flex-1 rounded border border-neutral-700 bg-ink-raised px-2 py-1.5 text-sm text-white outline-none placeholder:text-neutral-500 focus:border-neutral-400"
-        />
+      <div className="flex items-center justify-end">
         <button
           type="button"
           onClick={() => deleteNight(night.id)}
-          className="shrink-0 cursor-pointer text-xs text-red-400 hover:text-red-300"
+          className="cursor-pointer text-xs text-red-400 hover:text-red-300"
         >
           Cancel night
         </button>
@@ -95,12 +124,12 @@ function NightRow({ night, movieIds, watchlistEntries, moviesById, profileId }) 
         onClick={() => setPickerOpen((open) => !open)}
         className="cursor-pointer self-start text-sm text-brand hover:text-brand-hover"
       >
-        + Add a film from the watchlist
+        + Add a film
       </button>
 
       {pickerOpen && (
-        <FilmPicker
-          watchlistEntries={pickableEntries}
+        <CatalogSearchPicker
+          excludeIds={movieIds}
           onPick={(movieId) => {
             addMovieToNight(night.id, movieId, profileId)
             setPickerOpen(false)
@@ -111,19 +140,11 @@ function NightRow({ night, movieIds, watchlistEntries, moviesById, profileId }) 
   )
 }
 
-export default function NightDialog({
-  open,
-  onClose,
-  iso,
-  dateLabel,
-  nights,
-  watchlistEntries,
-  moviesById,
-  nightMoviesByNight,
-}) {
+export default function NightDialog({ open, onClose, iso, dateLabel, nights, moviesById, nightMoviesByNight }) {
   const dialogRef = useRef(null)
   const profileId = useAppStore((state) => state.currentProfileId)
   const scheduleNight = usePlanStore((state) => state.scheduleNight)
+  const addMovieToNight = usePlanStore((state) => state.addMovieToNight)
 
   useEffect(() => {
     const dialog = dialogRef.current
@@ -131,6 +152,13 @@ export default function NightDialog({
     if (open && !dialog.open) dialog.showModal()
     else if (!open && dialog.open) dialog.close()
   }, [open])
+
+  // Straight to film search for a fresh date -- no intermediate "add a night" step. Picking a
+  // result creates the night and attaches the film in one action.
+  const handlePickForNewNight = async (movieId) => {
+    const night = await scheduleNight({ scheduledFor: iso, createdBy: profileId })
+    if (night) addMovieToNight(night.id, movieId, profileId)
+  }
 
   return (
     <dialog
@@ -158,23 +186,26 @@ export default function NightDialog({
             key={night.id}
             night={night}
             movieIds={nightMoviesByNight.get(night.id) ?? []}
-            watchlistEntries={watchlistEntries}
             moviesById={moviesById}
             profileId={profileId}
           />
         ))}
 
-        {/* Only one night per date -- once one exists above, there's nothing to "add"; use its
-            own "+ Add a film" control instead. Multiple films on one night are how you handle
-            "more than one movie in a day" now, not multiple nights on the same date. */}
+        {/* Only one night per date -- once one exists above, use its own "+ Add a film" instead.
+            For a fresh date, skip straight to search rather than an intermediate "add a night"
+            button: picking a result both books the date and attaches the film. */}
         {nights.length === 0 && (
-          <button
-            type="button"
-            onClick={() => scheduleNight({ scheduledFor: iso, createdBy: profileId })}
-            className="cursor-pointer rounded bg-brand py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-hover"
-          >
-            + Add movie night on this date
-          </button>
+          <div className="flex flex-col gap-2 border-t border-neutral-800 pt-4">
+            <span className="text-xs text-neutral-400">Pick a film to plan this night</span>
+            <CatalogSearchPicker excludeIds={[]} onPick={handlePickForNewNight} />
+            <button
+              type="button"
+              onClick={() => scheduleNight({ scheduledFor: iso, createdBy: profileId })}
+              className="cursor-pointer self-start text-xs text-neutral-500 hover:text-neutral-300"
+            >
+              Just book the date — pick a film later
+            </button>
+          </div>
         )}
       </div>
     </dialog>

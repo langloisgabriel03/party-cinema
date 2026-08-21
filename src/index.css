@@ -28,3 +28,18 @@ body {
 dialog::backdrop {
   background-color: rgb(0 0 0 / 0.7);
 }
+
+/* Gentle continuous nudge -- draws the eye to a button without being obnoxious like animate-bounce. */
+@keyframes nudge {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+.animate-nudge {
+  animation: nudge 1.6s ease-in-out infinite;
+}

@@ -197,13 +197,6 @@ export const usePlanStore = create((set, get) => ({
     return data
   },
 
-  updateNight: async (id, patch) => {
-    const previous = get().nights
-    set({ nights: previous.map((night) => (night.id === id ? { ...night, ...patch } : night)) })
-    const { error } = await supabase.from('nights').update(patch).eq('id', id)
-    if (error) set({ nights: previous, planError: error.message })
-  },
-
   deleteNight: async (id) => {
     const previous = get().nights
     set({ nights: previous.filter((night) => night.id !== id) })
