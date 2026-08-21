@@ -58,15 +58,22 @@ export function weightedScore({ tomatometer, audience_score }) {
   return Math.round((tomatometer + audience_score) / 2)
 }
 
-/** Nulls always sort last, regardless of direction -- avoids NaN from naive numeric subtraction. */
+/**
+ * Nulls always sort last, regardless of direction -- avoids NaN from naive numeric subtraction.
+ * Ties (e.g. two movies from the same Year -- the catalog only has a release *year*, not an
+ * exact date) fall back to title A-Z, always ascending regardless of the primary direction, so
+ * same-year movies land in a stable, readable order instead of whatever order they happened to
+ * be fetched in.
+ */
 export function compareBy(sortBy, desc) {
   const field = SORT_FIELDS[sortBy] ?? 'title'
   return (a, b) => {
     const av = field === 'weightedScore' ? a.weightedScore : a[field]
     const bv = field === 'weightedScore' ? b.weightedScore : b[field]
-    if (av == null && bv == null) return 0
+    if (av == null && bv == null) return a.title.localeCompare(b.title)
     if (av == null) return 1
     if (bv == null) return -1
+    if (av === bv) return a.title.localeCompare(b.title)
     if (typeof av === 'string') return desc ? bv.localeCompare(av) : av.localeCompare(bv)
     return desc ? bv - av : av - bv
   }
@@ -84,17 +91,15 @@ function bounds(movies, field) {
   return { min, max }
 }
 
-/** Actual data bounds -- used as always-active year filter defaults, slider ranges, and labels. */
+/** Actual data bounds -- used for slider ranges and labels. No year bounds: see the note by the
+ * removed year filter in filterMovies() for why there's no year range filter at all anymore. */
 export function deriveFilterBounds(movies) {
-  const year = bounds(movies, 'year')
   const runtime = bounds(movies, 'runtime_minutes')
   const tomatometer = bounds(movies, 'tomatometer')
   const audienceScore = bounds(movies, 'audience_score')
   const criticReviewCount = bounds(movies, 'critic_review_count')
   const audienceRatingCount = bounds(movies, 'audience_rating_count')
   return {
-    yearMin: year.min ?? 1900,
-    yearMax: year.max ?? new Date().getFullYear(),
     runtimeBounds: runtime,
     tomatometerBounds: tomatometer,
     audienceScoreBounds: audienceScore,
@@ -122,14 +127,12 @@ export function getDistinctFranchises(movies) {
   return [...set].sort((a, b) => a.localeCompare(b))
 }
 
-export function createDefaultFilters(bounds) {
+export function createDefaultFilters() {
   return {
     lists: [],
     genres: [],
     onlyFranchise: false,
     franchises: [],
-    yearMin: bounds.yearMin,
-    yearMax: bounds.yearMax,
     runtimeMin: null,
     runtimeMax: null,
     tomatometerMin: null,
@@ -147,18 +150,12 @@ export function createDefaultFilters(bounds) {
  * Active filters as removable chips: `clear` is a plain patch to merge into filter state, not a
  * closure, so this stays a pure function -- also doubles as the "Filters" button's badge count.
  */
-export function describeActiveFilters(filters, bounds) {
+export function describeActiveFilters(filters) {
   const chips = []
   if (filters.lists.length) chips.push({ key: 'lists', label: `List (${filters.lists.length})`, clear: { lists: [] } })
   if (filters.genres.length) chips.push({ key: 'genres', label: `Genre (${filters.genres.length})`, clear: { genres: [] } })
   if (filters.onlyFranchise || filters.franchises.length)
     chips.push({ key: 'franchise', label: 'Franchise', clear: { onlyFranchise: false, franchises: [] } })
-  if (filters.yearMin !== bounds.yearMin || filters.yearMax !== bounds.yearMax)
-    chips.push({
-      key: 'year',
-      label: `Year ${filters.yearMin}–${filters.yearMax}`,
-      clear: { yearMin: bounds.yearMin, yearMax: bounds.yearMax },
-    })
   if (filters.runtimeMin != null || filters.runtimeMax != null)
     chips.push({ key: 'runtime', label: 'Runtime', clear: { runtimeMin: null, runtimeMax: null } })
   if (filters.tomatometerMin != null || filters.tomatometerMax != null)
@@ -188,7 +185,10 @@ export function filterMovies(movies, filters, matchIds) {
     if (filters.genres.length && !movie.genres.some((g) => filters.genres.includes(g))) return false
     if (filters.onlyFranchise && !movie.franchise) return false
     if (filters.franchises.length && !filters.franchises.includes(movie.franchise)) return false
-    if (movie.year < filters.yearMin || movie.year > filters.yearMax) return false
+    // No year range filter: the catalog only has a release year (not an exact date), a slider
+    // for it fought progressive loading (bounds widen in steps as more pages stream in, racing
+    // the filter's own synced state), and sorting by Year desc already covers "show me the
+    // newest stuff first" without needing a separate filter on top.
     if (filters.runtimeMin != null && (movie.runtime_minutes ?? -Infinity) < filters.runtimeMin) return false
     if (filters.runtimeMax != null && (movie.runtime_minutes ?? Infinity) > filters.runtimeMax) return false
     if (filters.tomatometerMin != null && (movie.tomatometer ?? -Infinity) < filters.tomatometerMin) return false

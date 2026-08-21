@@ -108,12 +108,11 @@ Deno.serve(async (req) => {
     night.created_by
       ? admin.from('profiles').select('name').eq('id', night.created_by).maybeSingle()
       : Promise.resolve({ data: null }),
-    admin.from('night_movies').select('movies(title)').eq('night_id', night.id).limit(3),
+    admin.from('night_movies').select('movies(title, poster)').eq('night_id', night.id).limit(3),
   ])
 
-  const titles = (filmsResult.data ?? [])
-    .map((row: any) => row.movies?.title)
-    .filter(Boolean)
+  const films = (filmsResult.data ?? []).map((row: any) => row.movies).filter(Boolean)
+  const titles = films.map((m: any) => m.title).filter(Boolean)
   const who = bookerResult.data?.name ?? 'Someone'
   const date = formatNightDate(night.scheduled_for)
 
@@ -122,6 +121,10 @@ Deno.serve(async (req) => {
     body: titles.length ? `${date} — ${titles.join(', ')}` : date,
     url: '/dashboard',
     tag: `night-${night.id}`,
+    // First attached film's poster, if there is one -- shown as the large image in the
+    // expanded notification on platforms that support it (see sw.js). Undefined (not present
+    // in the JSON at all) when there's no film yet or no poster URL, matching sw.js's check.
+    image: films.find((m: any) => m.poster)?.poster,
   })
 
   // Everyone except the booker's own devices. created_by is nullable in the schema; if it's

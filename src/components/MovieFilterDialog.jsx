@@ -261,14 +261,6 @@ export default function MovieFilterDialog({
         </fieldset>
 
         <RangeSlider
-          label="Year"
-          min={filters.yearMin}
-          max={filters.yearMax}
-          bound={{ min: bounds.yearMin, max: bounds.yearMax }}
-          onMinChange={(v) => patch({ yearMin: v ?? bounds.yearMin })}
-          onMaxChange={(v) => patch({ yearMax: v ?? bounds.yearMax })}
-        />
-        <RangeSlider
           label="Tomatometer"
           min={filters.tomatometerMin}
           max={filters.tomatometerMax}

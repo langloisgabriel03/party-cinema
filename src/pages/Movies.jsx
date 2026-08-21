@@ -20,10 +20,6 @@ import { getMovieSearchIndex, useMovieCatalogStore } from '@/store/useMovieCatal
 import { usePlanStore } from '@/store/usePlanStore'
 
 const PAGE_SIZE = 30
-// Wide static fallback so the year filter never excludes anything before real data loads --
-// once movies arrive, `bounds` (used for labels and the "cleared?" comparison) reflects the
-// actual range automatically, with no separate re-sync step needed.
-const FALLBACK_BOUNDS = { yearMin: 1900, yearMax: new Date().getFullYear() }
 
 export default function Movies() {
   const movies = useMovieCatalogStore((state) => state.movies)
@@ -46,28 +42,10 @@ export default function Movies() {
 
   const [rawQuery, setRawQuery] = useState('')
   const deferredQuery = useDeferredValue(rawQuery)
-  const [filters, setFilters] = useState(() => createDefaultFilters(FALLBACK_BOUNDS))
+  const [filters, setFilters] = useState(createDefaultFilters)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [page, setPage] = useState(1)
   const gridTopRef = useRef(null)
-
-  // Keep the year filter following `bounds` as long as the user hasn't touched it -- not just
-  // once. The catalog now loads progressively (see useMovieCatalogStore.initMovies): page 1
-  // lands first, so `bounds` itself widens in steps as more pages stream in. A one-time "synced
-  // yet?" flag would sync to page 1's (incomplete) range and then never move again, permanently
-  // stranding the lower bound wherever the first 1000 rows happened to end. Comparing against the
-  // *previous* bounds instead of a fixed fallback makes every widening step re-sync, and stops
-  // re-syncing the instant filters diverge from bounds (i.e. the user actually changed it).
-  const previousBoundsRef = useRef(bounds)
-  useEffect(() => {
-    const previous = previousBoundsRef.current
-    setFilters((f) =>
-      f.yearMin === previous.yearMin && f.yearMax === previous.yearMax
-        ? { ...f, yearMin: bounds.yearMin, yearMax: bounds.yearMax }
-        : f
-    )
-    previousBoundsRef.current = bounds
-  }, [bounds])
 
   // Split from the filter/sort memo below so toggling a genre chip doesn't re-run MiniSearch,
   // and so the fallback-to-plain-text decision (see resolveSearchMatches) happens on the raw
@@ -97,7 +75,7 @@ export default function Movies() {
 
   const totalPages = Math.max(1, Math.ceil(results.length / PAGE_SIZE))
   const pageResults = results.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-  const activeFilters = describeActiveFilters(filters, bounds)
+  const activeFilters = describeActiveFilters(filters)
 
   const goToPage = (next) => {
     setPage(Math.min(Math.max(1, next), totalPages))
@@ -109,9 +87,10 @@ export default function Movies() {
       <AppHeader>
         <Link
           to="/dashboard"
-          className="text-sm text-neutral-400 transition-colors hover:text-white"
+          aria-label="Back to dashboard"
+          className="flex size-11 items-center justify-center rounded-lg border border-neutral-700 bg-ink-raised text-lg text-white transition-colors hover:border-neutral-400 hover:bg-neutral-700"
         >
-          ← Dashboard
+          ←
         </Link>
       </AppHeader>
 
@@ -226,7 +205,7 @@ export default function Movies() {
         bounds={bounds}
         presentGenres={presentGenres}
         distinctFranchises={distinctFranchises}
-        onClearAll={() => setFilters(createDefaultFilters(bounds))}
+        onClearAll={() => setFilters(createDefaultFilters())}
       />
     </div>
   )

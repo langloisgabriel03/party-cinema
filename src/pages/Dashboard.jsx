@@ -15,8 +15,6 @@ import { useAppStore, useCurrentProfile } from '@/store/useAppStore'
 import { useMovieCatalogStore } from '@/store/useMovieCatalogStore'
 import { usePlanStore } from '@/store/usePlanStore'
 
-const WATCHLIST_PREVIEW_COUNT = 12
-
 export default function Dashboard() {
   const profile = useCurrentProfile()
   const signOut = useAppStore((state) => state.signOut)
@@ -34,7 +32,6 @@ export default function Dashboard() {
   const ensureMovies = useMovieCatalogStore((state) => state.ensureMovies)
 
   const [selectedDate, setSelectedDate] = useState(null)
-  const [watchlistExpanded, setWatchlistExpanded] = useState(false)
 
   useEffect(() => {
     initPlan()
@@ -71,7 +68,6 @@ export default function Dashboard() {
     [nights, selectedDate]
   )
 
-  const visibleEntries = watchlistExpanded ? entries : entries.slice(0, WATCHLIST_PREVIEW_COUNT)
   const nextNightMovieIds = nextNight ? (nightMoviesByNight.get(nextNight.id) ?? []) : []
   const nextNightFirstMovie = nextNightMovieIds.length ? moviesById.get(nextNightMovieIds[0]) : null
   const nextNightExtraCount = nextNightMovieIds.length - 1
@@ -187,22 +183,11 @@ export default function Dashboard() {
                   to watch.
                 </p>
               ) : (
-                <>
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-                    {visibleEntries.map((entry) => (
-                      <WatchlistCard key={entry.movieId} entry={entry} />
-                    ))}
-                  </div>
-                  {entries.length > WATCHLIST_PREVIEW_COUNT && (
-                    <button
-                      type="button"
-                      onClick={() => setWatchlistExpanded((expanded) => !expanded)}
-                      className="cursor-pointer self-start text-sm text-neutral-400 hover:text-white"
-                    >
-                      {watchlistExpanded ? 'Show less' : `See all (${entries.length})`}
-                    </button>
-                  )}
-                </>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                  {entries.map((entry) => (
+                    <WatchlistCard key={entry.movieId} entry={entry} />
+                  ))}
+                </div>
               )}
             </section>
           </div>

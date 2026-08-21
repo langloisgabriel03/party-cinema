@@ -38,6 +38,11 @@ self.addEventListener('push', (event) => {
       body: payload.body || 'A movie night was booked.',
       icon: '/icons/icon-192.png', // ignored on iOS -- it always uses the Home Screen icon
       badge: '/icons/icon-192.png', // Android status bar only
+      // Large image shown in the expanded notification (Android/desktop Chrome; iOS Safari's
+      // web push doesn't render `image` at all, so this is a no-op there, not a bug). Only set
+      // when the payload actually has one -- an empty/undefined src shows a broken-image icon
+      // instead of just omitting the picture.
+      ...(payload.image ? { image: payload.image } : {}),
       tag: payload.tag || 'party-cinema', // same night replaces rather than stacks
       data: { url: payload.url || '/dashboard' },
     })
