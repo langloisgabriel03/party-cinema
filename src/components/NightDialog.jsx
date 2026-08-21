@@ -1,6 +1,6 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 
-import { resolveSearchMatches } from '@/data/movieCatalog'
+import { resolveSearchMatches, scoreColor } from '@/data/movieCatalog'
 import { useAppStore } from '@/store/useAppStore'
 import { getMovieSearchIndex, useMovieCatalogStore } from '@/store/useMovieCatalogStore'
 import { usePlanStore } from '@/store/usePlanStore'
@@ -71,15 +71,24 @@ function CatalogSearchPicker({ onPick, excludeIds, watchlistEntries }) {
               type="button"
               title={movie.title}
               onClick={() => onPick(movie.id)}
-              className="w-16 shrink-0 cursor-pointer overflow-hidden rounded"
+              className="flex w-20 shrink-0 cursor-pointer flex-col gap-0.5 overflow-hidden rounded text-left"
             >
               {movie.poster ? (
-                <img src={movie.poster} alt="" className="aspect-2/3 w-full object-cover" />
+                <img src={movie.poster} alt="" className="aspect-2/3 w-full rounded object-cover" />
               ) : (
-                <div className="flex aspect-2/3 w-full items-center justify-center bg-ink-raised px-1 text-center text-[10px] text-neutral-500">
+                <div className="flex aspect-2/3 w-full items-center justify-center rounded bg-ink-raised px-1 text-center text-[10px] text-neutral-500">
                   {movie.title}
                 </div>
               )}
+              <span className="text-[10px] text-neutral-500">{movie.year}</span>
+              <span className="flex items-center gap-1.5 text-[10px] font-semibold">
+                <span className={scoreColor(movie.tomatometer)}>
+                  🍅{movie.tomatometer != null ? `${movie.tomatometer}%` : '—'}
+                </span>
+                <span className={scoreColor(movie.audience_score)}>
+                  🍿{movie.audience_score != null ? `${movie.audience_score}%` : '—'}
+                </span>
+              </span>
             </button>
           ))}
         </div>
@@ -232,13 +241,6 @@ export default function NightDialog({
               watchlistEntries={watchlistEntries}
               onPick={handlePickForNewNight}
             />
-            <button
-              type="button"
-              onClick={() => scheduleNight({ scheduledFor: iso, createdBy: profileId })}
-              className="cursor-pointer self-start text-xs text-neutral-500 hover:text-neutral-300"
-            >
-              Just book the date — pick a film later
-            </button>
           </div>
         )}
       </div>
