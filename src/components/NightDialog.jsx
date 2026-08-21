@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 import CatalogSearchPicker from '@/components/CatalogSearchPicker'
+import NightRsvp from '@/components/NightRsvp'
 import { notifyNightBooked } from '@/lib/push'
 import { useAppStore } from '@/store/useAppStore'
 import { usePlanStore } from '@/store/usePlanStore'
@@ -49,6 +50,10 @@ function NightRow({ night, movieIds, moviesById, profileId, watchlistEntries, on
           })}
         </div>
       )}
+
+      <div className="border-t border-neutral-800 pt-3">
+        <NightRsvp nightId={night.id} />
+      </div>
 
       <button
         type="button"

@@ -1,6 +1,9 @@
 import { formatNightDate } from '@/data/dates'
+import { usePlanStore } from '@/store/usePlanStore'
 
 export default function UpcomingNights({ nights, moviesById, nightMoviesByNight, onSelect }) {
+  const rsvpsByNight = usePlanStore((state) => state.rsvpsByNight)
+
   if (nights.length === 0) {
     return (
       <p className="text-sm text-neutral-500">
@@ -14,6 +17,7 @@ export default function UpcomingNights({ nights, moviesById, nightMoviesByNight,
       {nights.map((night) => {
         const movieIds = nightMoviesByNight.get(night.id) ?? []
         const movies = movieIds.map((id) => moviesById.get(id)).filter(Boolean)
+        const goingCount = (rsvpsByNight.get(night.id) ?? []).filter((r) => r.going).length
 
         return (
           <button
@@ -48,7 +52,14 @@ export default function UpcomingNights({ nights, moviesById, nightMoviesByNight,
               </div>
             )}
             <div className="min-w-0 flex-1">
-              <p className="text-xs text-neutral-400">{formatNightDate(night.scheduled_for)}</p>
+              <p className="flex items-center gap-1.5 text-xs text-neutral-400">
+                {formatNightDate(night.scheduled_for)}
+                {goingCount > 0 && (
+                  <span className="rounded-full bg-green-600/20 px-1.5 text-[10px] font-semibold text-green-400">
+                    {goingCount} going
+                  </span>
+                )}
+              </p>
               <p className="truncate text-sm font-medium text-white">
                 {movies.length
                   ? movies.map((m) => m.title).join(', ')

@@ -39,6 +39,17 @@ function setNightMovies(set, items) {
   set({ nightMovies: items, nightMoviesByNight: indexByFirst(items, 'night_id', 'movie_id') })
 }
 
+/** Same derived-index discipline: Map<night_id, rsvp[]>, rebuilt on every write, never in a selector. */
+function setRsvps(set, items) {
+  const byNight = new Map()
+  for (const rsvp of items) {
+    const list = byNight.get(rsvp.night_id) ?? []
+    list.push(rsvp)
+    byNight.set(rsvp.night_id, list)
+  }
+  set({ rsvps: items, rsvpsByNight: byNight })
+}
+
 async function fetchWatchlist() {
   const { data, error } = await supabase.from('watchlist_items').select('movie_id, added_by, created_at')
   if (error) throw error
@@ -54,6 +65,17 @@ async function fetchNights() {
 async function fetchNightMovies() {
   const { data, error } = await supabase.from('night_movies').select('night_id, movie_id, added_by, created_at')
   if (error) throw error
+  return data
+}
+
+async function fetchRsvps() {
+  const { data, error } = await supabase.from('night_rsvps').select('night_id, profile_id, going')
+  if (error) {
+    // Manual paste-in-dashboard migration like the rest of the schema, so it can lag a deploy.
+    // Treat a missing table as "nobody has replied" rather than failing the whole plan fetch.
+    console.warn('night_rsvps fetch failed (has night_rsvps_schema.sql been run?):', error.message)
+    return []
+  }
   return data
 }
 
@@ -112,6 +134,22 @@ function bindPlanHandlers(set, get, channel) {
         get().nightMovies.filter((nm) => !(nm.night_id === row.night_id && nm.movie_id === movieId))
       )
     })
+    // '*' rather than separate handlers: an RSVP is upserted, so changing your mind arrives as an
+    // UPDATE while a first reply arrives as an INSERT, and both mean the same thing here.
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'night_rsvps' }, ({ eventType, new: row, old }) => {
+      const current = get().rsvps
+      if (eventType === 'DELETE') {
+        setRsvps(
+          set,
+          current.filter((r) => !(r.night_id === old.night_id && r.profile_id === old.profile_id))
+        )
+        return
+      }
+      const index = current.findIndex(
+        (r) => r.night_id === row.night_id && r.profile_id === row.profile_id
+      )
+      setRsvps(set, index === -1 ? [...current, row] : current.map((r, i) => (i === index ? row : r)))
+    })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'roulette_entries' }, ({ new: row }) => {
       const current = get().rouletteEntries
       if (current.some((item) => item.movie_id === row.movie_id && item.added_by === row.added_by)) return
@@ -134,6 +172,8 @@ export const usePlanStore = create((set, get) => ({
   nightMovies: [],
   nightMoviesByNight: new Map(),
   rouletteEntries: [],
+  rsvps: [],
+  rsvpsByNight: new Map(),
   planLoading: true,
   planError: null,
 
@@ -141,14 +181,16 @@ export const usePlanStore = create((set, get) => ({
   // error) without a `fetched` guard, unlike the movie catalog's one-shot fetch.
   refreshPlan: async () => {
     try {
-      const [watchlist, nights, nightMovies, rouletteEntries] = await Promise.all([
+      const [watchlist, nights, nightMovies, rouletteEntries, rsvps] = await Promise.all([
         fetchWatchlist(),
         fetchNights(),
         fetchNightMovies(),
         fetchRouletteEntries(),
+        fetchRsvps(),
       ])
       setWatchlist(set, watchlist)
       setNightMovies(set, nightMovies)
+      setRsvps(set, rsvps)
       set({ nights, rouletteEntries, planLoading: false, planError: null })
     } catch (error) {
       set({ planLoading: false, planError: error.message })
@@ -274,6 +316,31 @@ export const usePlanStore = create((set, get) => ({
       .eq('movie_id', movieId)
     if (error) {
       setNightMovies(set, previous)
+      set({ planError: error.message })
+    }
+  },
+
+  /**
+   * `going` of null withdraws the reply entirely (back to "hasn't answered"), which is what
+   * tapping the already-selected button does -- otherwise there'd be no way to undo a mis-tap
+   * short of picking the wrong answer.
+   */
+  setRsvp: async (nightId, profileId, going) => {
+    const previous = get().rsvps
+    const without = previous.filter(
+      (r) => !(r.night_id === nightId && r.profile_id === profileId)
+    )
+    setRsvps(set, going == null ? without : [...without, { night_id: nightId, profile_id: profileId, going }])
+
+    const { error } =
+      going == null
+        ? await supabase.from('night_rsvps').delete().eq('night_id', nightId).eq('profile_id', profileId)
+        : await supabase
+            .from('night_rsvps')
+            .upsert({ night_id: nightId, profile_id: profileId, going }, { onConflict: 'night_id,profile_id' })
+
+    if (error) {
+      setRsvps(set, previous)
       set({ planError: error.message })
     }
   },

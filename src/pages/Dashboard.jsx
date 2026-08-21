@@ -27,6 +27,7 @@ export default function Dashboard() {
   const nights = usePlanStore((state) => state.nights)
   const nightMovies = usePlanStore((state) => state.nightMovies)
   const nightMoviesByNight = usePlanStore((state) => state.nightMoviesByNight)
+  const rsvpsByNight = usePlanStore((state) => state.rsvpsByNight)
   const planLoading = usePlanStore((state) => state.planLoading)
   const planError = usePlanStore((state) => state.planError)
   const initPlan = usePlanStore((state) => state.initPlan)
@@ -77,6 +78,9 @@ export default function Dashboard() {
 
   const nextNightMovieIds = nextNight ? (nightMoviesByNight.get(nextNight.id) ?? []) : []
   const nextNightMovies = nextNightMovieIds.map((id) => moviesById.get(id)).filter(Boolean)
+  const nextNightGoing = nextNight
+    ? (rsvpsByNight.get(nextNight.id) ?? []).filter((r) => r.going).length
+    : 0
 
   // The route guard redirects when there's no profile; this covers the render before it runs.
   if (!profile) return null
@@ -150,7 +154,14 @@ export default function Dashboard() {
                     </div>
                   )}
                   <div className="min-w-0">
-                    <p className="text-xs tracking-wide text-neutral-400 uppercase">Next movie night</p>
+                    <p className="flex items-center gap-1.5 text-xs tracking-wide text-neutral-400 uppercase">
+                      Next movie night
+                      {nextNightGoing > 0 && (
+                        <span className="rounded-full bg-green-600/20 px-1.5 text-[10px] font-semibold text-green-400 normal-case">
+                          {nextNightGoing} going
+                        </span>
+                      )}
+                    </p>
                     <p className="truncate text-lg font-semibold">{formatNightDate(nextNight.scheduled_for)}</p>
                     <p className="truncate text-sm text-neutral-400">
                       {nextNightMovies.length
