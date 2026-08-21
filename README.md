@@ -108,6 +108,18 @@ Deploy details that are easy to break:
 - **`src/data/dates.js`** — every date the calendar touches must go through `toISODate`/`fromISODate`.
   `new Date('2026-08-25')` parses as UTC midnight, which renders as the wrong day in a negative-offset
   timezone; this file exists specifically to keep that bug out.
+- **`public/sw.js` must stay cache-free.** GitHub Pages replaces all of `dist/` on every deploy, so a
+  precached `index.html` would pin hashed asset URLs that no longer exist — a white screen until
+  manual site-data clear. If a caching layer (Workbox, `vite-plugin-pwa`) is ever added here, that's the
+  failure mode to design around first. Registered with `updateViaCache: 'none'` for the same reason in
+  reverse: Pages serves `sw.js` with `max-age=600`, and without that flag a fixed worker could take up
+  to ten minutes to reach anyone, served stale from the HTTP cache.
+- **`notify-night`'s `verify_jwt` relies on the anon key being a legacy JWT.** `functions.invoke()` sends
+  it as a bearer token today because it *is* one (`eyJ...`). Supabase is retiring legacy JWT keys in
+  favor of `sb_publishable_…`/`sb_secret_…` — the day this project's anon key rotates, supabase-js stops
+  sending it as `Authorization`, and Edge Functions 401 **before the handler runs**, so notifications
+  would just stop with nothing in the function logs. If notifications silently die after a key rotation,
+  this is why.
 
 Deploys run automatically on every push to `main`. Repo **Settings → Pages → Source** must be
 **GitHub Actions**, and **Settings → Pages → Custom domain** must be `tooning.co` with DNS pointed at
