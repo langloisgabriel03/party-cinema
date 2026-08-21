@@ -17,7 +17,7 @@ let subscribed = false
 
 export const useAppStore = create(
   persist(
-    (set) => ({
+    (set, get) => ({
       profiles: [],
       profilesLoading: true,
       profilesError: null,
@@ -58,6 +58,16 @@ export const useAppStore = create(
                   : { profiles: [...state.profiles, row] }
               )
           )
+          .on(
+            'postgres_changes',
+            { event: 'UPDATE', schema: 'public', table: 'profiles' },
+            // Without this, a changed profile picture wouldn't reach anyone else's open tab until
+            // they reloaded. `new` is the complete post-update row, so replace-by-id is correct.
+            ({ new: row }) =>
+              set((state) => ({
+                profiles: state.profiles.map((profile) => (profile.id === row.id ? row : profile)),
+              }))
+          )
           .subscribe()
       },
 
@@ -84,6 +94,38 @@ export const useAppStore = create(
             : { profiles: [...state.profiles, data] }
         )
         return data
+      },
+
+      // Optimistic, then reconciled by the UPDATE realtime handler above (which also carries the
+      // change to everyone else's open tab). Needs the UPDATE policy from profiles_update.sql --
+      // without it the write matches no policy, affects zero rows, and reports no error.
+      //
+      // Returns the failure instead of setting profilesError: that field renders as "Couldn't
+      // reach the shared profile list", which would be a lie about what actually broke. The
+      // caller shows it where the action happened.
+      updateProfileAvatar: async (id, avatar) => {
+        const previous = get().profiles
+        set({
+          profiles: previous.map((profile) => (profile.id === id ? { ...profile, avatar } : profile)),
+        })
+
+        const { data, error } = await supabase
+          .from('profiles')
+          .update({ avatar })
+          .eq('id', id)
+          .select('id, name, avatar')
+
+        if (error) {
+          set({ profiles: previous })
+          return { ok: false, error: error.message }
+        }
+        // Zero rows back means RLS silently dropped it -- surface that rather than leaving the
+        // optimistic value on screen pretending it saved.
+        if (!data?.length) {
+          set({ profiles: previous })
+          return { ok: false, error: 'Could not save — has profiles_update.sql been run in Supabase?' }
+        }
+        return { ok: true }
       },
 
       selectProfile: (id) => set({ currentProfileId: id }),

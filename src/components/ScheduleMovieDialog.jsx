@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 import MonthCalendar from '@/components/MonthCalendar'
 import { formatNightDate } from '@/data/dates'
@@ -63,7 +64,12 @@ export default function ScheduleMovieDialog({ open, onClose, movie, movieId }) {
     }
   }
 
-  return (
+  // Portaled to <body>. This dialog is rendered from a WatchlistCard, which lives in the
+  // watchlist's CSS grid -- and at sm+ the shared dialog styling switches to `position: static`,
+  // which would lay it out as a GRID ITEM (pushed off to whichever cell it came from) instead of
+  // centred. Every other dialog in the app is already a direct child of its page root, so only
+  // this one needs lifting out.
+  return createPortal(
     <dialog
       ref={dialogRef}
       onClose={onClose}
@@ -113,6 +119,7 @@ export default function ScheduleMovieDialog({ open, onClose, movie, movieId }) {
           </>
         )}
       </div>
-    </dialog>
+    </dialog>,
+    document.body
   )
 }

@@ -2,8 +2,9 @@
  * Built-in avatars. Netflix's own avatar art is copyrighted, so these are simple flat SVGs
  * shipped from /public — no network calls, and easy to swap for real pictures later.
  *
- * Profiles store the avatar `id`, never the resolved URL: the URL depends on BASE_URL, and
- * persisting it would break every saved profile if the deploy path ever changes.
+ * Profiles store the avatar `id`, never the resolved URL: the URL depends on BASE_URL (and, for
+ * the photos below, on a build-time content hash), and persisting it would break every saved
+ * profile the next time either changes.
  */
 const withBase = (file) => `${import.meta.env.BASE_URL}avatars/${file}`
 
@@ -19,17 +20,53 @@ export const AVATARS = [
 export const DEFAULT_AVATAR_ID = AVATARS[0].id
 
 /**
- * Personal photo avatars for specific people -- resolved by avatarSrc() but deliberately not
- * part of AVATARS (the picker in AddProfileDialog): these are one person's own photo, not a
- * generic option anyone creating a profile should be able to pick for themselves.
+ * Personal photos, discovered at BUILD time from src/assets/photos/ -- dropping a new file in
+ * that folder is the whole job, no list to keep in sync here. They live in src/ rather than
+ * public/ precisely so this glob can see them (Vite copies public/ verbatim without indexing it),
+ * which also gets them content-hashed filenames, so replacing a photo can't leave a stale copy
+ * in anyone's cache.
+ *
+ * Naming is the convention that does the work: `<person>.jpg` is that person's default and
+ * `<person>_<whatever>.jpg` is an alternate -- marie.jpg, marie_1.jpg, marie_beach.jpg all group
+ * under "marie". The id stored on the profile is just the filename without its extension.
+ *
+ * Deliberately NOT part of AVATARS (the picker in AddProfileDialog): these are specific people's
+ * own faces, not generic options for anyone creating a profile.
  */
-const PHOTO_AVATARS = {
-  antho: withBase('photos/antho.jpg'),
-  nichon: withBase('photos/nichon.jpg'),
-  gaybes: withBase('photos/gaybes.jpg'),
-  gorguie: withBase('photos/gorguie.jpg'),
-  alex: withBase('photos/alex.jpg'),
-  marie: withBase('photos/marie.jpg'),
+const photoModules = import.meta.glob('../assets/photos/*.{jpg,jpeg,png,webp}', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+})
+
+const PHOTO_AVATARS = {}
+for (const [path, url] of Object.entries(photoModules)) {
+  const id = path.split('/').pop().replace(/\.[^.]+$/, '')
+  PHOTO_AVATARS[id] = url
+}
+
+/** Owner key for a photo id: the part before the first underscore. */
+function photoOwner(id) {
+  return id.split('_')[0]
+}
+
+/**
+ * Every photo belonging to `name`, default first, then alternates alphabetically -- the choices
+ * offered when editing that profile. Empty for a profile whose name has no photos in the repo
+ * (they get the generic SVGs instead).
+ */
+export function photosFor(name) {
+  const owner = String(name ?? '').trim().toLowerCase()
+  if (!owner) return []
+  return Object.keys(PHOTO_AVATARS)
+    .filter((id) => photoOwner(id) === owner)
+    .sort((a, b) => {
+      // The bare name (no underscore) is the default and sorts first; the rest are A-Z.
+      if (a === owner) return -1
+      if (b === owner) return 1
+      return a.localeCompare(b)
+    })
+    .map((id) => ({ id, src: PHOTO_AVATARS[id] }))
 }
 
 export function avatarSrc(id) {
