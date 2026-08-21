@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import AppHeader from '@/components/AppHeader'
+import EditProfileDialog from '@/components/EditProfileDialog'
 import MonthCalendar from '@/components/MonthCalendar'
 import NightDialog from '@/components/NightDialog'
 import PushPrompt from '@/components/PushPrompt'
 import UpcomingNights from '@/components/UpcomingNights'
 import WatchlistCard from '@/components/WatchlistCard'
-import { avatarSrc } from '@/data/avatars'
+import { avatarSrc, canEditAllProfiles } from '@/data/avatars'
 import { formatNightDate, todayISO } from '@/data/dates'
 import { groupWatchlist, nextUpcomingNight, referencedMovieIds, upcomingNights } from '@/data/plan'
 import { syncSubscription } from '@/lib/push'
@@ -35,6 +36,9 @@ export default function Dashboard() {
 
   const [selectedDate, setSelectedDate] = useState(null)
   const [nightsExpanded, setNightsExpanded] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  // Only ever set by the admin's profile switcher; everyone else edits themselves.
+  const [editTargetId, setEditTargetId] = useState(null)
 
   useEffect(() => {
     initPlan()
@@ -228,7 +232,35 @@ export default function Dashboard() {
             </section>
           </div>
         )}
+
+        <div className="mt-10 flex justify-center border-t border-neutral-900 pt-6">
+          <button
+            type="button"
+            onClick={() => {
+              setEditTargetId(null)
+              setEditOpen(true)
+            }}
+            className="flex cursor-pointer items-center gap-2 rounded-lg border border-neutral-800 px-4 py-2.5 text-sm text-neutral-400 transition-colors hover:border-neutral-600 hover:text-white"
+          >
+            <img src={avatarSrc(profile.avatar)} alt="" className="size-6 rounded-full object-cover" />
+            Edit profile picture
+          </button>
+        </div>
       </main>
+
+      {editOpen && (
+        <EditProfileDialog
+          open={editOpen}
+          onClose={() => {
+            setEditOpen(false)
+            setEditTargetId(null)
+          }}
+          // Read from the live list so the ticked tile updates the moment a save lands.
+          profile={profiles.find((p) => p.id === (editTargetId ?? profile.id)) ?? profile}
+          switchable={canEditAllProfiles(profile) ? profiles : null}
+          onSwitch={(p) => setEditTargetId(p.id)}
+        />
+      )}
 
       {selectedDate && (
         <NightDialog

@@ -159,3 +159,19 @@ export function notifyNightBooked(nightId) {
     .then(({ error }) => error && console.warn('notify-night failed', error))
     .catch((error) => console.warn('notify-night failed', error))
 }
+
+/**
+ * "The bracket started" / "next matchup is up". Fire-and-forget for the same reason as
+ * notifyNightBooked, and `exclude` is whoever caused it -- they're looking at the result already,
+ * so buzzing their own phone is pure noise.
+ *
+ * The function itself decides who to skip and de-duplicates per (bracket, round), so calling this
+ * from several clients at once when a match resolves sends one round of notifications, not six.
+ */
+export function notifyBracketRound(bracketId, round, excludeProfileId) {
+  if (!supabaseConfigured) return
+  supabase.functions
+    .invoke('notify-bracket', { body: { bracketId, round, excludeProfileId } })
+    .then(({ error }) => error && console.warn('notify-bracket failed', error))
+    .catch((error) => console.warn('notify-bracket failed', error))
+}

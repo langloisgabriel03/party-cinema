@@ -8,7 +8,7 @@ import { useAppStore } from '@/store/useAppStore'
  * person (see avatars.js) -- there is no upload, so the choices are fixed at build time and
  * adding one means committing a file, not changing this component.
  */
-export default function EditProfileDialog({ open, onClose, profile }) {
+export default function EditProfileDialog({ open, onClose, profile, switchable, onSwitch }) {
   const dialogRef = useRef(null)
   const updateProfileAvatar = useAppStore((state) => state.updateProfileAvatar)
   const [saving, setSaving] = useState(false)
@@ -38,8 +38,11 @@ export default function EditProfileDialog({ open, onClose, profile }) {
     else setSaveError(result.error)
   }
 
-  const Tile = ({ id, src }) => (
+  // Defined as a plain render helper, not a component: declaring a component inside render makes
+  // it a new type every pass, remounting the tiles (and re-fetching every image) on each save.
+  const tile = ({ id, src }) => (
     <button
+      key={id}
       type="button"
       onClick={() => choose(id)}
       disabled={saving}
@@ -89,14 +92,38 @@ export default function EditProfileDialog({ open, onClose, profile }) {
           <p className="rounded-lg bg-ink-raised p-3 text-sm text-red-400">{saveError}</p>
         )}
 
+        {/* Only rendered for a profile allowed to edit everyone (see canEditAllProfiles). */}
+        {switchable?.length > 1 && (
+          <div className="flex flex-col gap-2">
+            <p className="text-xs text-neutral-400">Whose picture</p>
+            <div className="flex flex-wrap gap-2">
+              {switchable.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => {
+                    setSaveError(null)
+                    onSwitch(p)
+                  }}
+                  aria-pressed={p.id === profile.id}
+                  className={`flex cursor-pointer items-center gap-2 rounded-full py-1 pr-3 pl-1 text-sm transition-colors ${
+                    p.id === profile.id
+                      ? 'bg-brand text-white'
+                      : 'bg-ink-raised text-neutral-400 hover:bg-neutral-700'
+                  }`}
+                >
+                  <img src={avatarSrc(p.avatar)} alt="" className="size-6 rounded-full object-cover" />
+                  {p.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {photos.length > 0 && (
           <div className="flex flex-col gap-2">
             <p className="text-xs text-neutral-400">{profile.name}&rsquo;s photos</p>
-            <div className="grid grid-cols-3 gap-3">
-              {photos.map((photo) => (
-                <Tile key={photo.id} id={photo.id} src={photo.src} />
-              ))}
-            </div>
+            <div className="grid grid-cols-3 gap-3">{photos.map(tile)}</div>
           </div>
         )}
 
@@ -104,11 +131,7 @@ export default function EditProfileDialog({ open, onClose, profile }) {
           <p className="text-xs text-neutral-400">
             {photos.length > 0 ? 'Or an icon' : 'Pick an icon'}
           </p>
-          <div className="grid grid-cols-3 gap-3">
-            {AVATARS.map((avatar) => (
-              <Tile key={avatar.id} id={avatar.id} src={avatar.src} />
-            ))}
-          </div>
+          <div className="grid grid-cols-3 gap-3">{AVATARS.map(tile)}</div>
         </div>
 
         {photos.length === 0 && (

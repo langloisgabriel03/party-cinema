@@ -20,6 +20,20 @@ export const AVATARS = [
 export const DEFAULT_AVATAR_ID = AVATARS[0].id
 
 /**
+ * Everyone can change their own picture; this one profile can change anybody's. Matched on name
+ * because that's the only stable handle -- profile ids are generated per environment, so
+ * hardcoding one would break the moment the table is rebuilt.
+ *
+ * Not a security boundary (there's no auth here at all, see plan_schema.sql) -- it just keeps the
+ * edit button pointed at your own profile rather than offering everyone's by default.
+ */
+const ADMIN_PROFILE_NAME = 'gaybes'
+
+export function canEditAllProfiles(profile) {
+  return String(profile?.name ?? '').trim().toLowerCase() === ADMIN_PROFILE_NAME
+}
+
+/**
  * Personal photos, discovered at BUILD time from src/assets/photos/ -- dropping a new file in
  * that folder is the whole job, no list to keep in sync here. They live in src/ rather than
  * public/ precisely so this glob can see them (Vite copies public/ verbatim without indexing it),

@@ -2,13 +2,25 @@
 
 import { weightedScore } from '@/data/movieCatalog'
 
-/** Bracket sizes we support. Anything else gets rounded DOWN to the nearest of these. */
-export const BRACKET_SIZES = [4, 8, 16]
+/** Two films is the smallest thing that can be a tournament: one match, straight to the final. */
+export const MIN_BRACKET = 2
+export const MAX_BRACKET = 32
 
-export function bracketSizeFor(available) {
-  let best = 0
-  for (const size of BRACKET_SIZES) if (size <= available) best = size
-  return best
+/**
+ * A knockout tree only halves cleanly from a power of two, so any other count is padded up to
+ * the next one and the gap filled with byes -- 6 films run as an 8-bracket where two of them sit
+ * out the first round. That's how real tournaments handle it, and it's why any count >= 2 works
+ * here rather than only 4/8/16.
+ */
+export function bracketCapacity(count) {
+  let capacity = 1
+  while (capacity < count) capacity *= 2
+  return Math.max(capacity, 2)
+}
+
+/** How many entrants skip round 1. Zero when the count is already a power of two. */
+export function byeCount(count) {
+  return bracketCapacity(count) - count
 }
 
 /**
@@ -47,25 +59,44 @@ export function roundName(round, totalRounds) {
  * tree up-front means advancing a winner is an UPDATE of a row that already exists, never an
  * INSERT that two clients could race and duplicate.
  *
- * `seeds` is the ordered entrant list (best seed first); its length must be a power of two.
+ * `seeds` is the ordered entrant list (best seed first) and may be ANY length >= 2. When it isn't
+ * a power of two the tree is padded to the next one and the empty slots become byes: standard
+ * seeding puts those against the top seeds, who are then advanced here at build time (winner set,
+ * next round pre-filled) so nobody is ever asked to vote on a film with no opponent.
  */
 export function buildMatches(seeds) {
-  const size = seeds.length
-  const order = seedOrder(size)
-  const matches = []
+  const capacity = bracketCapacity(seeds.length)
+  const rounds = roundCount(capacity)
+  const order = seedOrder(capacity)
 
-  for (let slot = 0; slot < size / 2; slot += 1) {
-    matches.push({
-      round: 1,
-      slot,
-      movie_a: seeds[order[slot * 2] - 1] ?? null,
-      movie_b: seeds[order[slot * 2 + 1] - 1] ?? null,
-    })
+  const matches = []
+  for (let round = 1; round <= rounds; round += 1) {
+    for (let slot = 0; slot < capacity / 2 ** round; slot += 1) {
+      matches.push({ round, slot, movie_a: null, movie_b: null, winner: null })
+    }
+  }
+  const at = (round, slot) => matches.find((m) => m.round === round && m.slot === slot)
+
+  for (let slot = 0; slot < capacity / 2; slot += 1) {
+    const match = at(1, slot)
+    // A seed number past the entrant count is an empty slot -- that's the bye.
+    match.movie_a = seeds[order[slot * 2] - 1] ?? null
+    match.movie_b = seeds[order[slot * 2 + 1] - 1] ?? null
   }
 
-  for (let round = 2; round <= roundCount(size); round += 1) {
-    for (let slot = 0; slot < size / 2 ** round; slot += 1) {
-      matches.push({ round, slot, movie_a: null, movie_b: null })
+  // ROUND 1 ONLY. A later round holding a single film is not a bye -- it's a match still waiting
+  // on the other feeder to be decided, and auto-advancing it here would send a film through
+  // without it ever being voted on. (Standard seeding also guarantees no round-1 match is
+  // completely empty: capacity is the *next* power of two up, so more than half the slots are
+  // always filled.)
+  for (let slot = 0; slot < capacity / 2; slot += 1) {
+    const match = at(1, slot)
+    const present = [match.movie_a, match.movie_b].filter(Boolean)
+    if (present.length !== 1) continue
+    match.winner = present[0]
+    if (rounds > 1) {
+      const { round: nextRound, slot: nextSlotIndex, side } = nextSlot(match)
+      at(nextRound, nextSlotIndex)[side] = present[0]
     }
   }
   return matches

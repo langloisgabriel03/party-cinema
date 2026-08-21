@@ -61,6 +61,8 @@ export const useBracketStore = create((set, get) => ({
   bracket: null,
   matches: [],
   votes: [],
+  // null means "not scoped" -- every profile plays. An array is the explicit roster.
+  participantIds: null,
   bracketLoading: true,
   bracketError: null,
 
@@ -68,12 +70,20 @@ export const useBracketStore = create((set, get) => ({
     try {
       const bracket = await fetchLatestBracket()
       if (!bracket) {
-        set({ bracket: null, matches: [], votes: [], bracketLoading: false, bracketError: null })
+        set({
+          bracket: null,
+          matches: [],
+          votes: [],
+          participantIds: null,
+          bracketLoading: false,
+          bracketError: null,
+        })
         return
       }
-      const [matchesResult, votesResult] = await Promise.all([
+      const [matchesResult, votesResult, participantsResult] = await Promise.all([
         supabase.from('bracket_matches').select('*').eq('bracket_id', bracket.id),
         supabase.from('bracket_votes').select('*'),
+        supabase.from('bracket_participants').select('profile_id').eq('bracket_id', bracket.id),
       ])
       if (matchesResult.error) throw matchesResult.error
       if (votesResult.error) throw votesResult.error
@@ -82,6 +92,12 @@ export const useBracketStore = create((set, get) => ({
         bracket,
         matches: matchesResult.data,
         votes: votesResult.data.filter((v) => matchIds.has(v.match_id)),
+        // A missing table (migration not run yet) is treated as "everyone", which is what the
+        // behaviour was before participants existed -- better than a bracket with no voters that
+        // can never resolve a match.
+        participantIds: participantsResult.error
+          ? null
+          : participantsResult.data.map((p) => p.profile_id),
         bracketLoading: false,
         bracketError: null,
       })
@@ -107,7 +123,7 @@ export const useBracketStore = create((set, get) => ({
   },
 
   /** Replaces any existing bracket -- there's only ever one tournament running. */
-  startBracket: async (movieIds, profileId) => {
+  startBracket: async (movieIds, profileId, participantIds) => {
     const previous = get().bracket
     const { data: bracket, error } = await supabase
       .from('brackets')
@@ -119,6 +135,8 @@ export const useBracketStore = create((set, get) => ({
       return
     }
 
+    // buildMatches pre-resolves byes when the count isn't a power of two, so the rows inserted
+    // here already carry those winners -- don't strip `winner` on the way in.
     const rows = buildMatches(movieIds).map((m) => ({ ...m, bracket_id: bracket.id }))
     const { data: matches, error: matchError } = await supabase.from('bracket_matches').insert(rows).select()
     if (matchError) {
@@ -128,8 +146,20 @@ export const useBracketStore = create((set, get) => ({
       set({ bracketError: matchError.message })
       return
     }
+
+    let roster = null
+    if (participantIds?.length) {
+      const { error: partError } = await supabase
+        .from('bracket_participants')
+        .insert(participantIds.map((id) => ({ bracket_id: bracket.id, profile_id: id })))
+      // Not fatal: without the roster the bracket just falls back to "everyone votes", which is
+      // how it worked before. Better than throwing away a tournament that's otherwise fine.
+      if (partError) console.warn('could not save participants (bracket_participants.sql run?):', partError.message)
+      else roster = participantIds
+    }
+
     if (previous) await supabase.from('brackets').delete().eq('id', previous.id)
-    set({ bracket, matches, votes: [], bracketError: null })
+    set({ bracket, matches, votes: [], participantIds: roster, bracketError: null })
   },
 
   castVote: async (matchId, movieId, profileId) => {

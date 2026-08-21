@@ -3,29 +3,20 @@ import { avatarSrc } from '@/data/avatars'
 // Shared tile geometry so the "add" tile lines up perfectly with real profiles.
 const TILE = 'group flex w-34 shrink-0 cursor-pointer flex-col items-center gap-3 outline-none sm:w-40'
 
-export default function ProfileCard({ profile, onSelect, managing, onEdit }) {
+export default function ProfileCard({ profile, onSelect }) {
   return (
     <button
       type="button"
-      onClick={() => (managing ? onEdit(profile) : onSelect(profile))}
+      onClick={() => onSelect(profile)}
       className={TILE}
-      aria-label={managing ? `Edit ${profile.name}` : `Continue as ${profile.name}`}
+      aria-label={`Continue as ${profile.name}`}
     >
-      <span className="relative block aspect-square w-full">
-        <img
-          src={avatarSrc(profile.avatar)}
-          alt=""
-          draggable="false"
-          className={`aspect-square w-full rounded-lg ring-0 ring-white transition-all duration-200 group-hover:ring-4 group-focus-visible:ring-4 ${
-            managing ? 'brightness-50' : ''
-          }`}
-        />
-        {managing && (
-          <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-3xl">
-            ✏️
-          </span>
-        )}
-      </span>
+      <img
+        src={avatarSrc(profile.avatar)}
+        alt=""
+        draggable="false"
+        className="aspect-square w-full rounded-lg ring-0 ring-white transition-all duration-200 group-hover:ring-4 group-focus-visible:ring-4"
+      />
       <span className="max-w-full truncate text-base text-neutral-400 transition-colors group-hover:text-white group-focus-visible:text-white sm:text-lg">
         {profile.name}
       </span>
