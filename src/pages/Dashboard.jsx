@@ -111,15 +111,23 @@ export default function Dashboard() {
       </AppHeader>
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-16 sm:px-8">
-        <h1 className="flex items-center gap-2 py-4 text-2xl font-semibold">
-          Hello, {profile.name} 👋
-          {/* Resuming the app re-fetches over plain REST (see usePlanStore's onResume) -- this is
-              that refresh, not a first load, so it's a quiet inline note, not a full loading
-              state that would blank out data still on screen and still correct. */}
-          {planRefreshing && !planLoading && (
-            <span className="text-sm font-normal text-neutral-500">Updating…</span>
-          )}
-        </h1>
+        <div className="flex items-center justify-between gap-3 py-4">
+          <h1 className="flex items-center gap-2 text-2xl font-semibold">
+            Hello, {profile.name} 👋
+            {/* Resuming the app re-fetches over plain REST (see usePlanStore's onResume) -- this
+                is that refresh, not a first load, so it's a quiet inline note, not a full loading
+                state that would blank out data still on screen and still correct. */}
+            {planRefreshing && !planLoading && (
+              <span className="text-sm font-normal text-neutral-500">Updating…</span>
+            )}
+          </h1>
+          <Link
+            to="/games"
+            className="flex shrink-0 items-center gap-1.5 rounded-lg bg-ink-soft px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-ink-raised"
+          >
+            🎲 Games
+          </Link>
+        </div>
 
         <PushPrompt />
 
@@ -214,17 +222,6 @@ export default function Dashboard() {
                   </button>
                 )}
               </section>
-
-              <Link
-                to="/games"
-                className="flex items-center gap-3 rounded-xl bg-ink-soft p-4 transition-colors hover:bg-ink-raised"
-              >
-                <span className="text-2xl">🎲</span>
-                <div>
-                  <p className="font-semibold">Picker games</p>
-                  <p className="text-sm text-neutral-400">Can&rsquo;t decide? Spin the roulette.</p>
-                </div>
-              </Link>
             </div>
 
             <section className="flex flex-col gap-3">
@@ -243,7 +240,7 @@ export default function Dashboard() {
                   to watch.
                 </p>
               ) : (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
                   {entries.map((entry) => (
                     <WatchlistCard key={entry.movieId} entry={entry} />
                   ))}
