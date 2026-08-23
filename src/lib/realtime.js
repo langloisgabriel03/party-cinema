@@ -22,12 +22,18 @@ import { supabase } from '@/lib/supabaseClient'
  *
  * `onDown` is deliberately not called on the first failure: a wobble while the radio wakes up is
  * normal and self-heals within a second or two, and flashing an error banner at that is noise.
+ *
+ * `onResume`, if given, fires the instant a resume signal arrives -- before any reconnect attempt,
+ * before SUBSCRIBED. A WebSocket handshake needs the network stack fully back; a plain REST call
+ * generally doesn't, so a caller that uses this to re-fetch over REST gets fresh data in one round
+ * trip instead of waiting out however many retries the socket needs. That's what turns "reopen the
+ * app, stare at an error for 10+ seconds" into "reopen the app, it's just there."
  */
 const RETRY_BASE_MS = 1000
 const RETRY_MAX_MS = 30_000
 const FAILURES_BEFORE_REPORTING = 3
 
-export function createResilientChannel({ name, bind, onSubscribed, onDown }) {
+export function createResilientChannel({ name, bind, onSubscribed, onDown, onResume }) {
   let channel = null
   let generation = 0
   let failures = 0
@@ -79,19 +85,24 @@ export function createResilientChannel({ name, bind, onSubscribed, onDown }) {
     connect()
   }
 
+  const resume = () => {
+    onResume?.()
+    revive()
+  }
+
   return {
     start() {
       if (started) return
       started = true
       connect()
       document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') revive()
+        if (document.visibilityState === 'visible') resume()
       })
       // bfcache restore on iOS doesn't necessarily fire visibilitychange (reason 4).
       window.addEventListener('pageshow', (event) => {
-        if (event.persisted) revive()
+        if (event.persisted) resume()
       })
-      window.addEventListener('online', revive)
+      window.addEventListener('online', resume)
     },
   }
 }

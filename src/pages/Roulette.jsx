@@ -20,6 +20,7 @@ export default function Roulette() {
   const rouletteEntries = usePlanStore((state) => state.rouletteEntries)
   const nightMovies = usePlanStore((state) => state.nightMovies)
   const planLoading = usePlanStore((state) => state.planLoading)
+  const planRefreshing = usePlanStore((state) => state.planRefreshing)
   const planError = usePlanStore((state) => state.planError)
   const initPlan = usePlanStore((state) => state.initPlan)
   const addToRoulette = usePlanStore((state) => state.addToRoulette)
@@ -103,7 +104,12 @@ export default function Roulette() {
       </AppHeader>
 
       <main className="mx-auto w-full max-w-4xl flex-1 px-4 pb-16 sm:px-8">
-        <h1 className="py-4 text-2xl font-semibold">🎰 Roulette</h1>
+        <h1 className="flex items-center gap-2 py-4 text-2xl font-semibold">
+          🎰 Roulette
+          {planRefreshing && !planLoading && (
+            <span className="text-sm font-normal text-neutral-500">Updating…</span>
+          )}
+        </h1>
 
         {planError && (
           <p className="mb-4 rounded-lg bg-ink-soft p-3 text-sm text-red-400">{planError}</p>

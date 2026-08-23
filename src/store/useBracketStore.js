@@ -11,10 +11,6 @@ import { supabase, supabaseConfigured } from '@/lib/supabaseClient'
  */
 let subscribed = false
 
-// Compared by identity when clearing, so a reconnect only clears its own message and never
-// wipes a real error (a failed fetch, a missing table) that happened to be showing.
-const RECONNECTING = 'Realtime connection lost — retrying…'
-
 async function fetchLatestBracket() {
   const { data, error } = await supabase
     .from('brackets')
@@ -62,9 +58,13 @@ export const useBracketStore = create((set, get) => ({
   // null means "not scoped" -- every profile plays. An array is the explicit roster.
   participantIds: null,
   bracketLoading: true,
+  // Same purpose as usePlanStore's planRefreshing: a light "still here, just updating" signal for
+  // a resume-triggered refresh, as opposed to the full loading state a first-ever load shows.
+  bracketRefreshing: false,
   bracketError: null,
 
   refreshBracket: async () => {
+    set({ bracketRefreshing: true })
     try {
       const bracket = await fetchLatestBracket()
       if (!bracket) {
@@ -74,6 +74,7 @@ export const useBracketStore = create((set, get) => ({
           votes: [],
           participantIds: null,
           bracketLoading: false,
+          bracketRefreshing: false,
           bracketError: null,
         })
         return
@@ -97,13 +98,14 @@ export const useBracketStore = create((set, get) => ({
           ? null
           : participantsResult.data.map((p) => p.profile_id),
         bracketLoading: false,
+        bracketRefreshing: false,
         bracketError: null,
       })
     } catch (error) {
       // bracket_schema.sql is a manual paste-in-dashboard migration and can lag a deploy -- show
       // the page's empty state rather than a crash if the tables aren't there yet.
       console.warn('bracket fetch failed (has bracket_schema.sql been run?):', error.message)
-      set({ bracketLoading: false, bracketError: error.message })
+      set({ bracketLoading: false, bracketRefreshing: false, bracketError: error.message })
     }
   },
 
@@ -121,11 +123,13 @@ export const useBracketStore = create((set, get) => ({
     createResilientChannel({
       name: 'bracket-changes',
       bind: (channel) => bindBracketHandlers(set, get, channel),
-      onSubscribed: () => {
-        if (get().bracketError === RECONNECTING) set({ bracketError: null })
-        get().refreshBracket()
-      },
-      onDown: () => set({ bracketError: RECONNECTING }),
+      onSubscribed: () => get().refreshBracket(),
+      // Instant REST refresh on resume, independent of the WebSocket -- see usePlanStore's
+      // matching onResume for why this is what actually fixes the "stuck on an error for 10+
+      // seconds after reopening the app" symptom.
+      onResume: () => get().refreshBracket(),
+      // No onDown: onResume's REST call already keeps data fresh, so a slow socket reconnect
+      // isn't something worth surfacing as an error any more.
     }).start()
   },
 

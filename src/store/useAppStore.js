@@ -79,6 +79,10 @@ export const useAppStore = create(
               ),
           // Re-fetch on every (re)connect to catch anything missed while the socket was down.
           onSubscribed: fetchProfiles,
+          // And instantly on resume, over plain REST -- doesn't wait on the socket. Same fix as
+          // usePlanStore's onResume, applied here so a profile picture changed while this phone
+          // was asleep shows up the moment the app is reopened, not whenever the socket catches up.
+          onResume: fetchProfiles,
           // No onDown: the profile list is near-static and already on screen, so an outage here
           // has nothing useful to tell the user.
         }).start()

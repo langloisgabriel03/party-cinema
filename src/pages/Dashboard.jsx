@@ -29,6 +29,7 @@ export default function Dashboard() {
   const nightMoviesByNight = usePlanStore((state) => state.nightMoviesByNight)
   const rsvpsByNight = usePlanStore((state) => state.rsvpsByNight)
   const planLoading = usePlanStore((state) => state.planLoading)
+  const planRefreshing = usePlanStore((state) => state.planRefreshing)
   const planError = usePlanStore((state) => state.planError)
   const initPlan = usePlanStore((state) => state.initPlan)
 
@@ -110,7 +111,15 @@ export default function Dashboard() {
       </AppHeader>
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-16 sm:px-8">
-        <h1 className="py-4 text-2xl font-semibold">Hello, {profile.name} 👋</h1>
+        <h1 className="flex items-center gap-2 py-4 text-2xl font-semibold">
+          Hello, {profile.name} 👋
+          {/* Resuming the app re-fetches over plain REST (see usePlanStore's onResume) -- this is
+              that refresh, not a first load, so it's a quiet inline note, not a full loading
+              state that would blank out data still on screen and still correct. */}
+          {planRefreshing && !planLoading && (
+            <span className="text-sm font-normal text-neutral-500">Updating…</span>
+          )}
+        </h1>
 
         <PushPrompt />
 

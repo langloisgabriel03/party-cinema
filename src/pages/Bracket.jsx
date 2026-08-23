@@ -72,6 +72,7 @@ export default function Bracket() {
   const matches = useBracketStore((state) => state.matches)
   const votes = useBracketStore((state) => state.votes)
   const bracketLoading = useBracketStore((state) => state.bracketLoading)
+  const bracketRefreshing = useBracketStore((state) => state.bracketRefreshing)
   const bracketError = useBracketStore((state) => state.bracketError)
   const participantIds = useBracketStore((state) => state.participantIds)
   const initBracket = useBracketStore((state) => state.initBracket)
@@ -206,7 +207,12 @@ export default function Bracket() {
       </AppHeader>
 
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-16 sm:px-8">
-        <h1 className="py-4 text-2xl font-semibold">🏆 Knockout Bracket</h1>
+        <h1 className="flex items-center gap-2 py-4 text-2xl font-semibold">
+          🏆 Knockout Bracket
+          {bracketRefreshing && !bracketLoading && (
+            <span className="text-sm font-normal text-neutral-500">Updating…</span>
+          )}
+        </h1>
 
         {bracketError && (
           <p className="mb-4 rounded-lg bg-ink-soft p-3 text-sm text-red-400">{bracketError}</p>

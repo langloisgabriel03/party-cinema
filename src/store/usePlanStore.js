@@ -14,10 +14,6 @@ import { supabase, supabaseConfigured } from '@/lib/supabaseClient'
  */
 let subscribed = false
 
-// Compared by identity when clearing, so a reconnect only clears its own message and never wipes
-// a real error (a failed fetch) that happened to be showing.
-const RECONNECTING = 'Realtime connection lost — retrying…'
-
 function indexByFirst(items, firstKey, secondKey) {
   const map = new Map()
   for (const item of items) {
@@ -175,11 +171,16 @@ export const usePlanStore = create((set, get) => ({
   rsvps: [],
   rsvpsByNight: new Map(),
   planLoading: true,
+  // True while a refresh is in flight AFTER the first load -- lets the UI show something light
+  // ("Updating…") on resume instead of either nothing (looks frozen) or the full-page loading
+  // state (which would blank out data that's still perfectly good while the new copy arrives).
+  planRefreshing: false,
   planError: null,
 
   // Full idempotent replacement -- safe to call any time (reconnect, tab refocus, after an
   // error) without a `fetched` guard, unlike the movie catalog's one-shot fetch.
   refreshPlan: async () => {
+    set({ planRefreshing: true })
     try {
       const [watchlist, nights, nightMovies, rouletteEntries, rsvps] = await Promise.all([
         fetchWatchlist(),
@@ -191,9 +192,9 @@ export const usePlanStore = create((set, get) => ({
       setWatchlist(set, watchlist)
       setNightMovies(set, nightMovies)
       setRsvps(set, rsvps)
-      set({ nights, rouletteEntries, planLoading: false, planError: null })
+      set({ nights, rouletteEntries, planLoading: false, planRefreshing: false, planError: null })
     } catch (error) {
-      set({ planLoading: false, planError: error.message })
+      set({ planLoading: false, planRefreshing: false, planError: error.message })
     }
   },
 
@@ -213,20 +214,21 @@ export const usePlanStore = create((set, get) => ({
     // REST call would have worked.
     get().refreshPlan()
 
-    // Fetching again on SUBSCRIBED -- which fires on first connect AND every reconnect -- closes
-    // both the "event landed between fetch and subscribe" window and the "phone was asleep,
-    // socket died" drift. Safe to run repeatedly because refreshPlan is a full replace.
     createResilientChannel({
       name: 'plan-changes',
       bind: (channel) => bindPlanHandlers(set, get, channel),
-      onSubscribed: () => {
-        // Clear our own stale "connection lost" the moment we're actually back.
-        if (get().planError === RECONNECTING) set({ planError: null })
-        get().refreshPlan()
-      },
-      // Only after several consecutive failures -- a brief wobble while the radio wakes up is
-      // normal and self-heals, and flashing a banner at that is what made this feel broken.
-      onDown: () => set({ planError: RECONNECTING }),
+      // Fetching again on SUBSCRIBED -- which fires on first connect AND every reconnect --
+      // closes both the "event landed between fetch and subscribe" window and the "phone was
+      // asleep, socket died" drift. Safe to run repeatedly because refreshPlan is a full replace.
+      onSubscribed: () => get().refreshPlan(),
+      // The REST refresh below runs the instant the app resumes, over plain HTTP -- it doesn't
+      // need the WebSocket handshake to finish first, so it's usually done before the socket
+      // would even be reconnected. That's what made a 10-15s "Couldn't reach movie night plans"
+      // error on Android turn into data just being there: the stale screen gets fresh data almost
+      // immediately, without ever waiting on (or reporting on) how long the socket takes.
+      onResume: () => get().refreshPlan(),
+      // No onDown: a slow-to-reconnect socket no longer means stale or missing data (onResume's
+      // REST call already covers that), so there is nothing here worth alarming the user about.
     }).start()
   },
 
