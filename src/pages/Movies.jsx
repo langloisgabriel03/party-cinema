@@ -158,12 +158,13 @@ export default function Movies() {
         {!moviesLoading && !moviesError && (
           <>
             <p className="py-3 text-sm text-neutral-500">
-              {results.length} of {movies.length} movies
-              {moreMoviesLoading && (
-                <span className="ml-2 inline-flex items-center gap-1.5 text-neutral-600">
+              {moreMoviesLoading ? (
+                <span className="inline-flex items-center gap-1.5 text-neutral-600">
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-neutral-600" />
-                  loading more&hellip;
+                  loading movies&hellip;
                 </span>
+              ) : (
+                `${results.length} of ${movies.length} movies`
               )}
             </p>
 
