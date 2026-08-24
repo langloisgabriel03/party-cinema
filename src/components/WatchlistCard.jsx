@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import ScheduleMovieDialog from '@/components/ScheduleMovieDialog'
+import TrailerLink from '@/components/TrailerLink'
 import { avatarSrc } from '@/data/avatars'
 import { formatCount, scoreColor } from '@/data/movieCatalog'
 import { usePlanStore } from '@/store/usePlanStore'
@@ -51,6 +52,7 @@ export default function WatchlistCard({ entry }) {
         >
           ✕
         </button>
+        {movie && <TrailerLink title={movie.title} year={movie.year} />}
       </div>
       <div className="flex flex-col gap-1.5 p-2 flex-1">
         <p className="line-clamp-2 text-sm leading-tight font-medium text-white">
