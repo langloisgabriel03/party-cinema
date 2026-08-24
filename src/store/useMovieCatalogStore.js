@@ -49,6 +49,11 @@ function buildSearchIndex(movies) {
 export const useMovieCatalogStore = create((set, get) => ({
   movies: [],
   moviesLoading: true,
+  // Distinct from moviesLoading: that one flips false the moment page 1 lands, so the grid can
+  // render fast -- but at catalog sizes past a page or two, "movies" is still incomplete at that
+  // point. Without this, `{results.length} of {movies.length}` reads as a final, complete count
+  // (e.g. "1000 of 1000") while ~27,000 more rows are still streaming in silently behind it.
+  moreMoviesLoading: true,
   moviesError: null,
   // The single id -> movie lookup surface for the whole app (watchlist cards, night dialogs),
   // not just the /movies grid. Populated by whichever source gets there first: the full catalog
@@ -67,7 +72,7 @@ export const useMovieCatalogStore = create((set, get) => ({
     fetched = true
 
     if (!supabaseConfigured) {
-      set({ moviesLoading: false, moviesError: 'Supabase is not configured yet.' })
+      set({ moviesLoading: false, moreMoviesLoading: false, moviesError: 'Supabase is not configured yet.' })
       return
     }
 
@@ -91,8 +96,9 @@ export const useMovieCatalogStore = create((set, get) => ({
           moviesById: new Map([...state.moviesById, ...rest.map((m) => [m.id, m])]),
         }))
       }
+      set({ moreMoviesLoading: false })
     } catch (error) {
-      set({ moviesLoading: false, moviesError: error.message })
+      set({ moviesLoading: false, moreMoviesLoading: false, moviesError: error.message })
     }
   },
 

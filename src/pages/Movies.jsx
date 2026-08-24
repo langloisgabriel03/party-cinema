@@ -24,6 +24,7 @@ const PAGE_SIZE = 30
 export default function Movies() {
   const movies = useMovieCatalogStore((state) => state.movies)
   const moviesLoading = useMovieCatalogStore((state) => state.moviesLoading)
+  const moreMoviesLoading = useMovieCatalogStore((state) => state.moreMoviesLoading)
   const moviesError = useMovieCatalogStore((state) => state.moviesError)
   const initMovies = useMovieCatalogStore((state) => state.initMovies)
   const initPlan = usePlanStore((state) => state.initPlan)
@@ -158,6 +159,12 @@ export default function Movies() {
           <>
             <p className="py-3 text-sm text-neutral-500">
               {results.length} of {movies.length} movies
+              {moreMoviesLoading && (
+                <span className="ml-2 inline-flex items-center gap-1.5 text-neutral-600">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-neutral-600" />
+                  loading more&hellip;
+                </span>
+              )}
             </p>
 
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
