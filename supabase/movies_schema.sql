@@ -52,11 +52,16 @@ create policy "Movies are viewable by everyone"
 -- Not added to supabase_realtime (unlike profiles): this is a curated catalog updated by an
 -- occasional manual script run, not something open tabs need pushed live updates for.
 
--- No indexes yet: at 5,851 rows a sequential scan is faster than the network round-trip to
--- Supabase's edge, so one would buy nothing. If this grows into the tens of thousands, add:
---   create index movies_genres_gin      on public.movies using gin (genres);
---   create index movies_lists_gin       on public.movies using gin (lists);
---   create index movies_year_idx        on public.movies (year);
---   create index movies_tomatometer_idx on public.movies (tomatometer);
---   create extension if not exists pg_trgm;
---   create index movies_title_trgm      on public.movies using gin (title gin_trgm_ops);
+-- Indexes: added once the table crossed into the tens of thousands of rows (an RT-sitemap-wide
+-- catalog scrape, filtered to movies with critic or audience review count > 25, or on a curated
+-- list -- see sync_to_supabase.py's MIN_REVIEW_COUNT/clears_quality_bar -- pushed it from ~5,851
+-- to well past that). Below that, a sequential scan was faster than the network round-trip to
+-- Supabase's edge, so an index would have bought nothing; past it, the app's genre/list/year/
+-- tomatometer filters and title search benefit.
+-- Safe to run standalone against the already-existing table (paste into SQL Editor -> Run):
+create index if not exists movies_genres_gin      on public.movies using gin (genres);
+create index if not exists movies_lists_gin       on public.movies using gin (lists);
+create index if not exists movies_year_idx        on public.movies (year);
+create index if not exists movies_tomatometer_idx on public.movies (tomatometer);
+create extension if not exists pg_trgm;
+create index if not exists movies_title_trgm      on public.movies using gin (title gin_trgm_ops);

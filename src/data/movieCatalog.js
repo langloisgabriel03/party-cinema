@@ -42,10 +42,14 @@ export const SECONDARY_GENRES = new Set([
 // Same idea for the smaller/niche studio lists.
 export const SECONDARY_LISTS = new Set(['screen_gems', 'dark_castle', 'neon', 'platinum_dunes'])
 
-// Hard floor, not a user-togglable filter: excludes niche/random titles nobody's heard of.
-// Unlike a score floor, a missing/zero rating count IS exactly the "obscure" signal this is
-// meant to catch, so null counts as 0 here (unrated == nobody's watched it == excluded).
-export const MIN_AUDIENCE_RATING_COUNT = 30
+// No hard obscurity floor here anymore -- rt-dashboard's sync_to_supabase.py already enforces
+// one (clears_quality_bar: critic or audience review count > 25, or on a curated list) before a
+// movie ever reaches this table, so every row here has already cleared that bar. Duplicating the
+// check client-side was redundant, and briefly inconsistent with the backend version in a way
+// that mattered: the backend gained a curated-list exemption (a movie on 4k_uhd or a studio list
+// is never "obscure" regardless of its RT review count) before this file did, so Turning Red /
+// Ghost / The Raid -- all on 4k_uhd, just not yet RT-matched locally -- were sitting in Supabase
+// but still invisible here. One floor, enforced once, is easier to keep correct than two.
 
 /**
  * Mirrors rt-dashboard's actual Library-page formula: a plain mean, not the unrelated 2/3-1/3
@@ -180,7 +184,6 @@ export function describeActiveFilters(filters) {
 export function filterMovies(movies, filters, matchIds) {
   return movies.filter((movie) => {
     if (matchIds && !matchIds.has(movie.id)) return false
-    if ((movie.audience_rating_count ?? 0) < MIN_AUDIENCE_RATING_COUNT) return false
     if (filters.lists.length && !movie.lists.some((l) => filters.lists.includes(l))) return false
     if (filters.genres.length && !movie.genres.some((g) => filters.genres.includes(g))) return false
     if (filters.onlyFranchise && !movie.franchise) return false

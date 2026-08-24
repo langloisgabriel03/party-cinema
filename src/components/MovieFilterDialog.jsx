@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
-import { MIN_AUDIENCE_RATING_COUNT, SECONDARY_GENRES, SECONDARY_LISTS, SORT_OPTIONS } from '@/data/movieCatalog'
+import { SECONDARY_GENRES, SECONDARY_LISTS, SORT_OPTIONS } from '@/data/movieCatalog'
 import filterSchema from '@/data/filterSchema.json'
 
 const toggleInArray = (array, value) =>
@@ -308,7 +308,6 @@ export default function MovieFilterDialog({
               />
               <MinSlider
                 label="Min audience ratings"
-                hint={`always ≥${MIN_AUDIENCE_RATING_COUNT}`}
                 value={filters.minAudienceRatings}
                 bound={bounds.audienceRatingCountBounds}
                 onChange={(v) => patch({ minAudienceRatings: v })}
