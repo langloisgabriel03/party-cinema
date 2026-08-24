@@ -1,5 +1,6 @@
 import { memo } from 'react'
 
+import MagnetLink from '@/components/MagnetLink'
 import TrailerLink from '@/components/TrailerLink'
 import WatchlistButton from '@/components/WatchlistButton'
 import filterSchema from '@/data/filterSchema.json'
@@ -39,6 +40,7 @@ function MovieCard({ movie }) {
         )}
         <WatchlistButton movieId={movie.id} />
         <TrailerLink title={movie.title} year={movie.year} />
+        <MagnetLink title={movie.title} year={movie.year} />
       </div>
 
       <div className="flex flex-1 flex-col gap-1 p-2">
