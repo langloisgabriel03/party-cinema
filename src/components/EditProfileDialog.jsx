@@ -92,7 +92,7 @@ export default function EditProfileDialog({ open, onClose, profile, switchable, 
           <p className="rounded-lg bg-ink-raised p-3 text-sm text-red-400">{saveError}</p>
         )}
 
-        {/* Only rendered for a profile allowed to edit everyone (see canEditAllProfiles). */}
+        {/* Only rendered for a profile allowed to edit everyone (see isAdmin). */}
         {switchable?.length > 1 && (
           <div className="flex flex-col gap-2">
             <p className="text-xs text-neutral-400">Whose picture</p>

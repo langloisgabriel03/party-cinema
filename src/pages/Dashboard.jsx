@@ -8,7 +8,7 @@ import NightDialog from '@/components/NightDialog'
 import PushPrompt from '@/components/PushPrompt'
 import UpcomingNights from '@/components/UpcomingNights'
 import WatchlistCard from '@/components/WatchlistCard'
-import { avatarSrc, canEditAllProfiles } from '@/data/avatars'
+import { avatarSrc, isAdmin } from '@/data/avatars'
 import { formatNightDate, todayISO } from '@/data/dates'
 import { groupWatchlist, nextUpcomingNight, referencedMovieIds, upcomingNights } from '@/data/plan'
 import { syncSubscription } from '@/lib/push'
@@ -274,7 +274,7 @@ export default function Dashboard() {
           }}
           // Read from the live list so the ticked tile updates the moment a save lands.
           profile={profiles.find((p) => p.id === (editTargetId ?? profile.id)) ?? profile}
-          switchable={canEditAllProfiles(profile) ? profiles : null}
+          switchable={isAdmin(profile) ? profiles : null}
           onSwitch={(p) => setEditTargetId(p.id)}
         />
       )}

@@ -1,17 +1,23 @@
-import { avatarSrc } from '@/data/avatars'
+import { avatarSrc, isAdmin } from '@/data/avatars'
 import { scoreColor } from '@/data/movieCatalog'
-import { useAppStore } from '@/store/useAppStore'
+import { useAppStore, useCurrentProfile } from '@/store/useAppStore'
 import { usePlanStore } from '@/store/usePlanStore'
 
 /** `entry` is one grouped roulette entry from groupWatchlist(): { movieId, movie, wantedBy, addedAt }. */
 export default function RouletteCard({ entry }) {
   const { movie, wantedBy } = entry
   const profileId = useAppStore((state) => state.currentProfileId)
+  const admin = isAdmin(useCurrentProfile())
   const removeFromRoulette = usePlanStore((state) => state.removeFromRoulette)
 
   // Only your own pick is yours to pull -- everyone has a limited number of slots, so removing
-  // someone else's costs them one they can't see they've lost.
+  // someone else's costs them one they can't see they've lost. The admin profile is exempt (see
+  // isAdmin): they can clear anyone's pick, one avatar at a time below.
   const isMine = wantedBy.some((profile) => profile.id === profileId)
+  // The big top-right control: your own pick always, or -- for the admin -- the single owner of
+  // a card nobody else has also picked. A card multiple people picked has no one obvious owner
+  // for this button, so the admin removes those per-person via the avatar row instead.
+  const removableOwnerId = isMine ? profileId : admin && wantedBy.length === 1 ? wantedBy[0].id : null
 
   return (
     <div className="flex flex-col overflow-hidden rounded-lg bg-ink-soft">
@@ -29,10 +35,10 @@ export default function RouletteCard({ entry }) {
             {movie ? 'No poster' : '…'}
           </div>
         )}
-        {isMine && (
+        {removableOwnerId != null && (
           <button
             type="button"
-            onClick={() => removeFromRoulette(entry.movieId, profileId)}
+            onClick={() => removeFromRoulette(entry.movieId, removableOwnerId)}
             aria-label={`Remove ${movie?.title ?? 'movie'} from the roulette`}
             className="absolute top-1 right-1 flex min-h-9 min-w-9 cursor-pointer items-center justify-center rounded-full bg-black/60 text-sm font-bold text-neutral-200 backdrop-blur-sm hover:bg-black/80"
           >
@@ -57,15 +63,28 @@ export default function RouletteCard({ entry }) {
         )}
 
         <div className="mt-auto flex -space-x-2.5">
-          {wantedBy.map((profile) => (
-            <img
-              key={profile.id}
-              src={avatarSrc(profile.avatar)}
-              alt=""
-              title={profile.name}
-              className="size-8 rounded-full border-2 border-ink-soft object-cover"
-            />
-          ))}
+          {wantedBy.map((person) =>
+            admin ? (
+              <button
+                key={person.id}
+                type="button"
+                onClick={() => removeFromRoulette(entry.movieId, person.id)}
+                title={`Remove ${person.name}'s pick`}
+                aria-label={`Remove ${person.name}'s pick from the roulette`}
+                className="size-8 shrink-0 cursor-pointer overflow-hidden rounded-full border-2 border-ink-soft transition-opacity hover:opacity-50"
+              >
+                <img src={avatarSrc(person.avatar)} alt="" className="size-full object-cover" />
+              </button>
+            ) : (
+              <img
+                key={person.id}
+                src={avatarSrc(person.avatar)}
+                alt=""
+                title={person.name}
+                className="size-8 rounded-full border-2 border-ink-soft object-cover"
+              />
+            )
+          )}
         </div>
       </div>
     </div>

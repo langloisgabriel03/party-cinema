@@ -20,16 +20,17 @@ export const AVATARS = [
 export const DEFAULT_AVATAR_ID = AVATARS[0].id
 
 /**
- * Everyone can change their own picture; this one profile can change anybody's. Matched on name
- * because that's the only stable handle -- profile ids are generated per environment, so
- * hardcoding one would break the moment the table is rebuilt.
+ * Everyone can manage their own stuff (profile picture, roulette picks); this one profile can
+ * manage anybody's. Matched on name because that's the only stable handle -- profile ids are
+ * generated per environment, so hardcoding one would break the moment the table is rebuilt.
  *
- * Not a security boundary (there's no auth here at all, see plan_schema.sql) -- it just keeps the
- * edit button pointed at your own profile rather than offering everyone's by default.
+ * Not a security boundary (there's no auth here at all, see plan_schema.sql) -- it just keeps
+ * admin-only controls (editing someone else's profile, clearing someone else's roulette pick)
+ * pointed at the right profile instead of offered to everyone.
  */
 const ADMIN_PROFILE_NAME = 'gaybes'
 
-export function canEditAllProfiles(profile) {
+export function isAdmin(profile) {
   return String(profile?.name ?? '').trim().toLowerCase() === ADMIN_PROFILE_NAME
 }
 
