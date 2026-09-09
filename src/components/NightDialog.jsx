@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import CatalogSearchPicker from '@/components/CatalogSearchPicker'
 import NightRsvp from '@/components/NightRsvp'
+import { isPastDate } from '@/data/dates'
 import { notifyNightBooked } from '@/lib/push'
 import { useAppStore } from '@/store/useAppStore'
 import { usePlanStore } from '@/store/usePlanStore'
@@ -93,6 +94,7 @@ export default function NightDialog({
   const profileId = useAppStore((state) => state.currentProfileId)
   const scheduleNight = usePlanStore((state) => state.scheduleNight)
   const addMovieToNight = usePlanStore((state) => state.addMovieToNight)
+  const isPast = isPastDate(iso)
 
   useEffect(() => {
     const dialog = dialogRef.current
@@ -112,7 +114,11 @@ export default function NightDialog({
       // the film, so that row has to exist before it's invoked, or the notification goes out as
       // a bare date with no title.
       await addMovieToNight(night.id, movieId, profileId)
-      notifyNightBooked(night.id)
+      // A past date is someone recording a film we already saw, not booking anything -- buzzing
+      // everyone's phone about a night that's already been and gone is pure noise. The date
+      // check is local (isPastDate), not the Edge Function's UTC one, because "is tonight still
+      // ahead of us?" is only answerable in the viewer's own zone.
+      if (!isPast) notifyNightBooked(night.id)
     }
     onClose()
   }
@@ -128,7 +134,14 @@ export default function NightDialog({
     >
       <div className="flex flex-col gap-4 p-5 pb-8">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">{dateLabel}</h2>
+          <h2 className="flex items-center gap-2 text-lg font-semibold">
+            {dateLabel}
+            {isPast && (
+              <span className="rounded-full bg-green-600/20 px-2 py-0.5 text-xs font-semibold text-green-400">
+                Already watched
+              </span>
+            )}
+          </h2>
           <button
             type="button"
             onClick={onClose}
@@ -155,7 +168,11 @@ export default function NightDialog({
             button: picking a result both books the date and attaches the film. */}
         {nights.length === 0 && (
           <div className="flex flex-col gap-2 border-t border-neutral-800 pt-4">
-            <span className="text-xs text-neutral-400">Pick a film to plan this night</span>
+            <span className="text-xs text-neutral-400">
+              {isPast
+                ? 'Pick the film we watched — it goes straight to Watched, and nobody gets a notification.'
+                : 'Pick a film to plan this night'}
+            </span>
             <CatalogSearchPicker
               excludeIds={[]}
               watchlistEntries={watchlistEntries}

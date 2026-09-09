@@ -1,6 +1,6 @@
 // Pure data helpers for the watchlist + nights domain -- no React here, mirrors movieCatalog.js's role.
 
-import { todayISO } from '@/data/dates'
+import { isPastDate, todayISO } from '@/data/dates'
 
 /**
  * Every movie id referenced anywhere -- the backfill list for useMovieCatalogStore's
@@ -54,4 +54,56 @@ export function upcomingNights(nights) {
 
 export function nextUpcomingNight(nights) {
   return upcomingNights(nights)[0] ?? null
+}
+
+/** Nights that have already happened, most recent first -- the Watched section's source. */
+export function pastNights(nights) {
+  return sortNights(nights).filter((night) => isPastDate(night.scheduled_for)).reverse()
+}
+
+/**
+ * Films attached to a night that has already been and gone -- the "Watched" list.
+ *
+ * Derived from nights rather than the watchlist on purpose: a film logged straight onto a past
+ * date (the "we already saw this, just record it" flow) was never on anyone's watchlist, and
+ * should still count as watched. One row per movie, keyed on the most recent showing, so a
+ * rewatch is a `times` count instead of the same poster twice.
+ *
+ * `watchedBy` is the going RSVPs of that showing -- often empty for a night logged after the
+ * fact, so it's decoration, never the reason a row exists.
+ */
+export function watchedEntries({ nights, nightMoviesByNight, moviesById, rsvpsByNight, profiles }) {
+  const profileById = new Map(profiles.map((p) => [p.id, p]))
+  const byMovie = new Map()
+  // pastNights() is most-recent-first, so the first time a movie turns up IS its latest showing.
+  for (const night of pastNights(nights)) {
+    for (const movieId of nightMoviesByNight.get(night.id) ?? []) {
+      const existing = byMovie.get(movieId)
+      if (existing) {
+        existing.times += 1
+        continue
+      }
+      byMovie.set(movieId, {
+        movieId,
+        movie: moviesById.get(movieId) ?? null,
+        watchedOn: night.scheduled_for,
+        nightId: night.id,
+        times: 1,
+        watchedBy: (rsvpsByNight?.get(night.id) ?? [])
+          .filter((rsvp) => rsvp.going)
+          .map((rsvp) => profileById.get(rsvp.profile_id))
+          .filter(Boolean),
+      })
+    }
+  }
+  return [...byMovie.values()]
+}
+
+/**
+ * Watchlist entries with everything already watched taken out -- "Soon to watch" is a to-do
+ * list, so a film that's had its night belongs under Watched instead, not in both places.
+ */
+export function unwatchedEntries(entries, watched) {
+  const seen = new Set(watched.map((entry) => entry.movieId))
+  return entries.filter((entry) => !seen.has(entry.movieId))
 }

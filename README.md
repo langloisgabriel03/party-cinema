@@ -1,9 +1,11 @@
 # Party Cinema 🍿
 
 Plan movie nights with friends: everyone browses a 5,851-movie catalog and adds what they want to watch,
-then a calendar schedules a night and (optionally) picks a film from the list. Installable as a home
-screen app, with a push notification when someone books a night — see `src/lib/push.js` and
-`supabase/functions/notify-night.ts`.
+then a calendar schedules a night and (optionally) picks a film from the list. Once a night has been
+and gone its film drops out of "Soon to watch" and into the dashboard's **Watched** shelf, dated.
+Picking a date that's already past logs a film we saw without notifying anyone — the "just put it in
+the calendar" flow. Installable as a home screen app, with a push notification when someone books a
+(future) night — see `src/lib/push.js` and `supabase/functions/notify-night.ts`.
 
 **Live:** https://tooning.co
 
@@ -83,16 +85,18 @@ src/
     avatars.js                     built-in + personal photo avatars (profiles store the id, not the URL)
     filterSchema.json              genre taxonomy + list labels, copied from the rt-dashboard scraper project
     movieCatalog.js                pure helpers: filtering, sorting, weighted score, year-aware search parser
-    plan.js                        pure helpers: grouping the watchlist by movie, sorting/filtering nights
+    plan.js                        pure helpers: grouping the watchlist by movie, sorting/filtering nights,
+                                    deriving the Watched list from nights that have already happened
     dates.js                       date-only helpers -- see the big comment there about UTC boundary bugs
   pages/
     ProfileSelect.jsx              "Who's watching?"
-    Dashboard.jsx                  next night, calendar, upcoming nights, watchlist
+    Dashboard.jsx                  next night, calendar, upcoming nights, watchlist, watched history
     Movies.jsx                     search/filter/browse the catalog, add to watchlist
   components/
     AppHeader.jsx, ProfileCard.jsx, AddProfileDialog.jsx
     MovieCard.jsx, MovieFilterDialog.jsx, WatchlistButton.jsx
     MonthCalendar.jsx, NightDialog.jsx, WatchlistCard.jsx, UpcomingNights.jsx
+    WatchedMovies.jsx              the history shelf: past nights' films, newest first, with the date
     PushPrompt.jsx                 dismissible "turn on notifications" row, iOS "add to home screen" hint
 public/
   manifest.webmanifest, icons/, apple-touch-icon.png    PWA install shell

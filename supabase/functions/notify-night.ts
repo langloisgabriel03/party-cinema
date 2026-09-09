@@ -95,6 +95,21 @@ Deno.serve(async (req) => {
     return json({ skipped: 'stale' })
   }
 
+  // Backstop for the client's own isPastDate() check: a night logged onto a date that has
+  // already been and gone is a record of something we watched, not an announcement, so it must
+  // never buzz anyone's phone.
+  //
+  // Deliberately generous by one day. Deno runs in UTC, and a night scheduled for *tonight* by
+  // someone in a negative-offset zone can already be "yesterday" in UTC by the time they book
+  // it (exactly the off-by-one src/data/dates.js exists to prevent). Comparing against
+  // yesterday-UTC means a genuine "tonight" booking can never be silenced by timezone alone,
+  // while anything actually in the past still is. The client decides the precise boundary --
+  // only it knows the viewer's zone.
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  if (night.scheduled_for < cutoff) {
+    return json({ skipped: 'past-night' })
+  }
+
   // Replay guard: an already-claimed night returns zero rows. anon cannot clear
   // night_notifications (zero RLS policies), so this holds even against a determined caller.
   const { data: claimed, error: claimError } = await admin

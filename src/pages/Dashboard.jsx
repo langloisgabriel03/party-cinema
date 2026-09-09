@@ -7,16 +7,25 @@ import MonthCalendar from '@/components/MonthCalendar'
 import NightDialog from '@/components/NightDialog'
 import PushPrompt from '@/components/PushPrompt'
 import UpcomingNights from '@/components/UpcomingNights'
+import WatchedMovies from '@/components/WatchedMovies'
 import WatchlistCard from '@/components/WatchlistCard'
 import { avatarSrc, isAdmin } from '@/data/avatars'
 import { formatNightDate, todayISO } from '@/data/dates'
-import { groupWatchlist, nextUpcomingNight, referencedMovieIds, upcomingNights } from '@/data/plan'
+import {
+  groupWatchlist,
+  nextUpcomingNight,
+  referencedMovieIds,
+  unwatchedEntries,
+  upcomingNights,
+  watchedEntries,
+} from '@/data/plan'
 import { syncSubscription } from '@/lib/push'
 import { useAppStore, useCurrentProfile } from '@/store/useAppStore'
 import { useMovieCatalogStore } from '@/store/useMovieCatalogStore'
 import { usePlanStore } from '@/store/usePlanStore'
 
 const NIGHTS_PREVIEW_COUNT = 7
+const WATCHED_PREVIEW_COUNT = 6
 
 export default function Dashboard() {
   const profile = useCurrentProfile()
@@ -38,6 +47,7 @@ export default function Dashboard() {
 
   const [selectedDate, setSelectedDate] = useState(null)
   const [nightsExpanded, setNightsExpanded] = useState(false)
+  const [watchedExpanded, setWatchedExpanded] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   // Only ever set by the admin's profile switcher; everyone else edits themselves.
   const [editTargetId, setEditTargetId] = useState(null)
@@ -60,10 +70,18 @@ export default function Dashboard() {
     if (ids.length) ensureMovies(ids)
   }, [ids, ensureMovies])
 
-  const entries = useMemo(
+  const allEntries = useMemo(
     () => groupWatchlist(watchlist, moviesById, profiles),
     [watchlist, moviesById, profiles]
   )
+  const watched = useMemo(
+    () => watchedEntries({ nights, nightMoviesByNight, moviesById, rsvpsByNight, profiles }),
+    [nights, nightMoviesByNight, moviesById, rsvpsByNight, profiles]
+  )
+  // "Soon to watch" is the to-do list: once a film has had its night it moves down to Watched
+  // rather than sitting in both sections. `allEntries` stays whole for anything that needs the
+  // real watchlist regardless of history.
+  const entries = useMemo(() => unwatchedEntries(allEntries, watched), [allEntries, watched])
   const upcoming = useMemo(() => upcomingNights(nights), [nights])
   const nextNight = useMemo(() => nextUpcomingNight(nights), [nights])
   const nightsByDate = useMemo(() => {
@@ -224,29 +242,61 @@ export default function Dashboard() {
               </section>
             </div>
 
-            <section className="flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold tracking-wide text-neutral-400 uppercase">
-                  Soon to watch
-                </h2>
-                <Link to="/movies" className="text-sm text-brand hover:text-brand-hover">
-                  + Add movies
-                </Link>
-              </div>
-
-              {entries.length === 0 ? (
-                <p className="text-sm text-neutral-500">
-                  Nobody&rsquo;s added a movie yet — browse the catalog and tap + on anything you want
-                  to watch.
-                </p>
-              ) : (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
-                  {entries.map((entry) => (
-                    <WatchlistCard key={entry.movieId} entry={entry} />
-                  ))}
+            {/* Wrapper, not two grid children: the right-hand column is one cell of the lg
+                grid, and a bare second <section> would be laid out as a third column instead
+                of stacking under "Soon to watch". */}
+            <div className="flex flex-col gap-8">
+              <section className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-sm font-semibold tracking-wide text-neutral-400 uppercase">
+                    Soon to watch
+                  </h2>
+                  <Link to="/movies" className="text-sm text-brand hover:text-brand-hover">
+                    + Add movies
+                  </Link>
                 </div>
+
+                {entries.length === 0 ? (
+                  <p className="text-sm text-neutral-500">
+                    {allEntries.length > 0
+                      ? 'Everything on the watchlist has had its night — it’s all down in Watched. Add something new to line up the next one.'
+                      : 'Nobody’s added a movie yet — browse the catalog and tap + on anything you want to watch.'}
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
+                    {entries.map((entry) => (
+                      <WatchlistCard key={entry.movieId} entry={entry} />
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              {/* Only ever rendered once there's history to show -- an empty "Watched" heading on
+                  a fresh install is just noise. */}
+              {watched.length > 0 && (
+                <section className="flex flex-col gap-3">
+                  <h2 className="flex items-center gap-2 border-t border-neutral-900 pt-6 text-sm font-semibold tracking-wide text-neutral-400 uppercase">
+                    Watched
+                    <span className="rounded-full bg-green-600/20 px-2 py-0.5 text-xs font-semibold text-green-400 normal-case">
+                      {watched.length}
+                    </span>
+                  </h2>
+                  <WatchedMovies
+                    entries={watchedExpanded ? watched : watched.slice(0, WATCHED_PREVIEW_COUNT)}
+                    onSelect={setSelectedDate}
+                  />
+                  {watched.length > WATCHED_PREVIEW_COUNT && (
+                    <button
+                      type="button"
+                      onClick={() => setWatchedExpanded((v) => !v)}
+                      className="cursor-pointer self-start text-sm text-brand hover:text-brand-hover"
+                    >
+                      {watchedExpanded ? 'Show less' : `See all ${watched.length} watched`}
+                    </button>
+                  )}
+                </section>
               )}
-            </section>
+            </div>
           </div>
         )}
 

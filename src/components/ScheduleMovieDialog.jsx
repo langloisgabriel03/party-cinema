@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import MonthCalendar from '@/components/MonthCalendar'
-import { formatNightDate } from '@/data/dates'
+import { formatNightDate, isPastDate } from '@/data/dates'
 import { notifyNightBooked } from '@/lib/push'
 import { useAppStore } from '@/store/useAppStore'
 import { usePlanStore } from '@/store/usePlanStore'
@@ -55,7 +55,9 @@ export default function ScheduleMovieDialog({ open, onClose, movie, movieId }) {
           // Awaited before notifying: notify-night reads night_movies to name the film, so the
           // row has to exist first or the push goes out as a bare date.
           await addMovieToNight(night.id, movieId, profileId)
-          notifyNightBooked(night.id)
+          // Past date = logging a film we've already seen so it lands in Watched. Nothing was
+          // booked, so there's nothing to announce (same rule as NightDialog).
+          if (!isPastDate(iso)) notifyNightBooked(night.id)
         }
       }
       setDone(iso)
@@ -101,9 +103,16 @@ export default function ScheduleMovieDialog({ open, onClose, movie, movieId }) {
 
         {done ? (
           <div className="flex flex-col gap-3">
-            <p className="rounded-lg bg-brand/20 p-3 text-sm text-white">
-              🎬 Booked for <span className="font-semibold">{formatNightDate(done)}</span>
-            </p>
+            {isPastDate(done) ? (
+              <p className="rounded-lg bg-green-600/20 p-3 text-sm text-white">
+                ✓ Watched on <span className="font-semibold">{formatNightDate(done)}</span> — moved to
+                Watched, no notifications sent.
+              </p>
+            ) : (
+              <p className="rounded-lg bg-brand/20 p-3 text-sm text-white">
+                🎬 Booked for <span className="font-semibold">{formatNightDate(done)}</span>
+              </p>
+            )}
             <button
               type="button"
               onClick={onClose}
@@ -114,7 +123,9 @@ export default function ScheduleMovieDialog({ open, onClose, movie, movieId }) {
           </div>
         ) : (
           <>
-            <p className="text-sm text-neutral-400">Pick a date to watch it.</p>
+            <p className="text-sm text-neutral-400">
+              Pick a date to watch it — or a past one to log a film we already saw.
+            </p>
             <MonthCalendar nightsByDate={nightsByDate} onSelectDate={handlePick} />
           </>
         )}

@@ -32,3 +32,23 @@ export function formatNightDate(iso) {
     day: 'numeric',
   })
 }
+
+/**
+ * Strictly before today, in the viewer's own zone. A night scheduled for *today* is still
+ * ahead of us (that's the same boundary upcomingNights() uses), so it is not history.
+ */
+export const isPastDate = (iso) => iso < todayISO()
+
+/**
+ * "Aug 25" -- or "Aug 25, 2025" once it's not this year. Used on watched rows, where the
+ * weekday no longer matters but telling last August from this one does.
+ */
+export function formatWatchedDate(iso) {
+  const date = fromISODate(iso)
+  const sameYear = date.getFullYear() === new Date().getFullYear()
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    ...(sameYear ? {} : { year: 'numeric' }),
+  })
+}
