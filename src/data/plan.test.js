@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { nextDates } from './dates'
 import {
+  movieReferences,
   openPolls,
   pastNights,
   summarizePoll,
@@ -218,5 +219,33 @@ describe('nextDates', () => {
 
   it('rolls over a year end', () => {
     expect(nextDates(2, new Date(2026, 11, 31))).toEqual(['2026-12-31', '2027-01-01'])
+  })
+})
+
+describe('movieReferences', () => {
+  const base = { watchlist: [], nightMovies: [], rouletteEntries: [], datePolls: [] }
+
+  it('lists nothing for a movie nobody has touched', () => {
+    expect(movieReferences(1, base)).toEqual([])
+  })
+
+  it('flags each place independently, in a stable order', () => {
+    const state = {
+      watchlist: [{ movie_id: 1, added_by: 'p1' }],
+      nightMovies: [{ movie_id: 1, night_id: 'n1' }],
+      rouletteEntries: [{ movie_id: 1, added_by: 'p1' }],
+      datePolls: [{ movie_id: 1, created_by: 'p1' }],
+    }
+    expect(movieReferences(1, state)).toEqual([
+      'the watchlist',
+      'a movie night',
+      'the roulette pool',
+      'an open date poll',
+    ])
+  })
+
+  it('only reports the movie actually asked about', () => {
+    const state = { ...base, watchlist: [{ movie_id: 999, added_by: 'p1' }] }
+    expect(movieReferences(1, state)).toEqual([])
   })
 })

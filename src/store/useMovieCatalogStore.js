@@ -11,6 +11,24 @@ import { supabase, supabaseConfigured } from '@/lib/supabaseClient'
 import { weightedScore } from '@/data/movieCatalog'
 
 /**
+ * `title (year)` -> a URL-safe slug, for addManualMovie(). Every scraped row's slug comes from
+ * Letterboxd (rt-dashboard/lb_scraper.py); a hand-added movie has no such source, so one is built
+ * here instead. The `manual-` prefix is never shown anywhere in the UI (slug is a pure DB key,
+ * nothing reads it) -- it exists so a slug collision with a real Letterboxd-sourced movie is
+ * structurally impossible (no scraped slug starts with it), and so the row is obviously
+ * hand-added to anyone reading the movies table directly.
+ */
+function slugify(title, year) {
+  const base = String(title)
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '') // strip accents (Amélie -> amelie)
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  return `manual-${base}${year ? `-${year}` : ''}`
+}
+
+/**
  * The full read-only movie catalog -- 31k rows and growing -- fetched once per session and kept
  * in memory, deliberately not persisted to localStorage (a multi-MB array would jank the main
  * thread on every synchronous JSON.stringify persist write). Distinct from useAppStore's
@@ -184,5 +202,108 @@ export const useMovieCatalogStore = create((set, get) => ({
       for (const row of data) next.set(row.id, { ...row, weightedScore: weightedScore(row) })
       return { moviesById: next }
     })
+  },
+
+  /**
+   * Admin-only (gated in the UI by isAdmin(), see MovieCard.jsx) permanent removal of a catalog
+   * entry -- a duplicate, a mismatched RT page, spam from a broad sitemap scrape. Requires
+   * supabase/movies_admin_schema.sql's anon DELETE policy on movies, which movies_schema.sql
+   * deliberately didn't ship with (every write used to be sync_to_supabase.py's service_role
+   * only). Non-optimistic on purpose: this is the one destructive, hard-to-undo action in this
+   * store, and the caller (MovieCard's two-tap confirm) has already made the user commit to it --
+   * removing it from view before the request actually lands would be one more thing to unwind if
+   * it fails.
+   *
+   * Also tombstones the slug in deleted_movies so sync_to_supabase.py's next run doesn't quietly
+   * resurrect it from the local scrape pipeline -- see that table's own comment for why the
+   * generic deleted_rows undo log (movies_admin_schema.sql's other trigger) isn't enough on its
+   * own. Best-effort: if the tombstone insert fails, the movie is still gone from the catalog
+   * either way, so this only warns rather than rolling the deletion back.
+   */
+  removeMovie: async (movieId) => {
+    const { data: row, error } = await supabase
+      .from('movies')
+      .delete()
+      .eq('id', movieId)
+      .select('slug, title, poster')
+      .single()
+    // `!row` alongside `error`, not just `error`: RLS silently filtering out every row a DELETE
+    // would've touched (e.g. movies_admin_schema.sql's anon DELETE policy not pasted in yet)
+    // isn't a Postgres error at all -- it's a successful delete-of-zero-rows, so .single()'s
+    // "expected exactly one row" complaint is the only signal something didn't happen. Without
+    // this check that reads as success and `row.slug` below throws into an unhandled rejection,
+    // leaving DeleteRow's confirm button stuck on "Removing…" forever with no visible error.
+    if (error || !row) {
+      const message = error?.message ?? 'Nothing was deleted -- missing permission?'
+      set({ moviesError: message })
+      return { error: message }
+    }
+
+    inCatalog.delete(movieId)
+    searchIndex?.discard(movieId)
+    set((state) => ({
+      movies: state.movies.filter((m) => m.id !== movieId),
+      moviesById: new Map([...state.moviesById].filter(([id]) => id !== movieId)),
+    }))
+
+    const { error: tombstoneError } = await supabase
+      .from('deleted_movies')
+      .insert({ slug: row.slug, title: row.title })
+    if (tombstoneError) {
+      console.warn(
+        `Deleted "${row.title}" but couldn't tombstone its slug -- a future catalog sync may ` +
+          `bring it back (has movies_admin_schema.sql been run?):`,
+        tombstoneError.message
+      )
+    }
+    return { title: row.title }
+  },
+
+  /**
+   * Admin-only "add a movie by hand" -- a title fetch-rt-movie.ts scraped from a pasted Rotten
+   * Tomatoes link (or one the admin typed in from scratch, if a field needed correcting or the
+   * scrape failed). `fields` is whatever AddMovieDialog collected; every column besides
+   * title/year is nullable or array-defaulted in the schema, so a sparse manual entry is fine.
+   *
+   * data_sources: ['manual'] is not decoration -- sync_to_supabase.py's
+   * fetch_manually_added_slugs() reads it to protect this row from its local-deletions cleanup
+   * pass. Without that tag, the very next sync run would delete this row outright: there is no
+   * local SQLite record backing it, so it looks identical to "removed from every list".
+   *
+   * Retries on a slug collision (23505) with an incrementing suffix rather than failing outright
+   * -- two people adding "Dune" the same afternoon, or re-adding a title after deleting it under
+   * a slightly different year, shouldn't need a manual rename.
+   */
+  addManualMovie: async (fields) => {
+    // title and year are NOT NULL in the schema (movies_schema.sql) -- checked here too, not
+    // just in AddMovieDialog's form validation, since this action is the actual source of truth
+    // and a 23502 constraint violation from Postgres would be a far less useful error to show.
+    if (!fields.title?.trim()) return { error: 'Title is required.' }
+    if (!fields.year) return { error: 'Year is required.' }
+
+    const base = slugify(fields.title, fields.year)
+    const now = new Date().toISOString()
+    const row = {
+      ...fields,
+      decade: fields.year ? Math.floor(fields.year / 10) * 10 : null,
+      data_sources: ['manual'],
+      rt_last_refreshed: now,
+    }
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const slug = attempt === 0 ? base : `${base}-${attempt + 1}`
+      const { data, error } = await supabase
+        .from('movies')
+        .insert({ ...row, slug })
+        .select(MOVIE_COLUMNS)
+        .single()
+      if (!error) {
+        addToCatalog(set, [data])
+        return { movie: data }
+      }
+      if (error.code !== '23505') return { error: error.message }
+      // else: slug taken, loop and try the next suffix
+    }
+    return { error: 'Could not find a free slug after several attempts -- try a different title.' }
   },
 }))

@@ -161,3 +161,23 @@ export function summarizePoll({ rows, dates, profiles, profileId }) {
     responders: [...responders].map((id) => profileById.get(id)).filter(Boolean),
   }
 }
+
+/**
+ * Short, human-readable list of where a movie is currently in active use -- the watchlist, a
+ * planned or already-watched night, the roulette pool, an open date poll -- for the admin delete
+ * confirmation on /movies (MovieCard.jsx). Deleting the catalog row cascades to remove it from
+ * every one of these (see movies_admin_schema.sql's comment on the FKs involved); this is what
+ * lets that confirmation say what's actually at stake instead of a blanket "are you sure?".
+ *
+ * Takes plain arrays/Maps rather than reading the stores itself -- this file stays store-free
+ * (see the header comment), and the caller already has all four from a single
+ * usePlanStore.getState() snapshot.
+ */
+export function movieReferences(movieId, { watchlist, nightMovies, rouletteEntries, datePolls }) {
+  const notes = []
+  if (watchlist.some((item) => item.movie_id === movieId)) notes.push('the watchlist')
+  if (nightMovies.some((nm) => nm.movie_id === movieId)) notes.push('a movie night')
+  if (rouletteEntries.some((item) => item.movie_id === movieId)) notes.push('the roulette pool')
+  if (datePolls.some((poll) => poll.movie_id === movieId)) notes.push('an open date poll')
+  return notes
+}

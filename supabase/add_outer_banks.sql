@@ -39,12 +39,22 @@ insert into public.movies (
   42,
   2500,
   'https://www.rottentomatoes.com/tv/outer_banks',
-  array['rottentomatoes']
+  -- 'manual' (alongside 'rottentomatoes') is what protects this row from
+  -- sync_to_supabase.py's local-deletions cleanup -- see that script's
+  -- fetch_manually_added_slugs(). Without it, the very next sync run would treat
+  -- this row as "removed from every local list" (there is no local SQLite row for
+  -- it at all) and delete it outright the first time anyone ran the sync after
+  -- pasting this file. Every future hand-added movie is tagged this way too, via
+  -- party-cinema's own add-movie flow (src/store/useMovieCatalogStore.js).
+  array['rottentomatoes','manual']
 )
--- Safe to run twice: slug is unique, so a re-run updates the scores rather than adding a copy.
+-- Safe to run twice: slug is unique, so a re-run updates the scores (and the
+-- protective data_sources tag, in case this ever ran before that tag existed)
+-- rather than adding a copy.
 on conflict (slug) do update set
   tomatometer           = excluded.tomatometer,
   audience_score        = excluded.audience_score,
   critic_review_count   = excluded.critic_review_count,
   audience_rating_count = excluded.audience_rating_count,
-  poster                = excluded.poster;
+  poster                = excluded.poster,
+  data_sources          = excluded.data_sources;

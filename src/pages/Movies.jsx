@@ -1,9 +1,11 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import AddMovieDialog from '@/components/AddMovieDialog'
 import AppHeader from '@/components/AppHeader'
 import MovieCard from '@/components/MovieCard'
 import MovieFilterDialog from '@/components/MovieFilterDialog'
+import { isAdmin } from '@/data/avatars'
 import filterSchema from '@/data/filterSchema.json'
 import {
   compareBy,
@@ -16,6 +18,7 @@ import {
   parseSearchQuery,
   resolveSearchMatches,
 } from '@/data/movieCatalog'
+import { useCurrentProfile } from '@/store/useAppStore'
 import { getMovieSearchIndex, useMovieCatalogStore } from '@/store/useMovieCatalogStore'
 import { usePlanStore } from '@/store/usePlanStore'
 
@@ -29,12 +32,19 @@ export default function Movies() {
   const serverSearching = useMovieCatalogStore((state) => state.serverSearching)
   const initMovies = useMovieCatalogStore((state) => state.initMovies)
   const searchServerSide = useMovieCatalogStore((state) => state.searchServerSide)
+  const removeMovie = useMovieCatalogStore((state) => state.removeMovie)
   const initPlan = usePlanStore((state) => state.initPlan)
+  const admin = isAdmin(useCurrentProfile())
 
   useEffect(() => {
     initMovies()
     initPlan()
   }, [initMovies, initPlan])
+
+  // Stable identity across every render: MovieCard is memo()'d specifically so a page of ~30
+  // cards doesn't all re-render together every time this component does (which, mid-catalog-load,
+  // is often) -- a fresh function here on every render would defeat that for every card at once.
+  const handleDelete = useCallback((movieId) => removeMovie(movieId), [removeMovie])
 
   const bounds = useMemo(() => deriveFilterBounds(movies), [movies])
   const presentGenres = useMemo(
@@ -47,6 +57,7 @@ export default function Movies() {
   const deferredQuery = useDeferredValue(rawQuery)
   const [filters, setFilters] = useState(createDefaultFilters)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [addOpen, setAddOpen] = useState(false)
   const [page, setPage] = useState(1)
   const gridTopRef = useRef(null)
 
@@ -126,6 +137,17 @@ export default function Movies() {
               </span>
             )}
           </button>
+          {/* Admin-only, same gate as the delete row on each card -- see isAdmin's own comment
+              for why this is UI politeness, not a security boundary (no auth in this app at all). */}
+          {admin && (
+            <button
+              type="button"
+              onClick={() => setAddOpen(true)}
+              className="shrink-0 cursor-pointer rounded border border-neutral-700 bg-ink-raised px-4 py-2.5 text-sm text-neutral-200 hover:border-neutral-400"
+            >
+              ➕ Add movie
+            </button>
+          )}
         </div>
 
         {(match?.yearPrefix || activeFilters.length > 0) && (
@@ -181,7 +203,7 @@ export default function Movies() {
 
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
               {pageResults.map((movie) => (
-                <MovieCard key={movie.id} movie={movie} />
+                <MovieCard key={movie.id} movie={movie} admin={admin} onDelete={handleDelete} />
               ))}
             </div>
 
@@ -230,6 +252,8 @@ export default function Movies() {
         distinctFranchises={distinctFranchises}
         onClearAll={() => setFilters(createDefaultFilters())}
       />
+
+      {admin && <AddMovieDialog open={addOpen} onClose={() => setAddOpen(false)} />}
     </div>
   )
 }
