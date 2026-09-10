@@ -42,6 +42,17 @@ dialog::backdrop {
  * top/bottom/margin. Two utilities of equal specificity are settled by stylesheet order, which
  * is Tailwind's to decide and can change with a class-sort; a rule after the @import always
  * wins. Per-dialog width comes from --dialog-width: class="dialog-sheet [--dialog-width:32rem]".
+ *
+ * max-width is set explicitly below for the same reason the centring fix above was needed: a
+ * modal <dialog>'s UA stylesheet carries its own `max-width` (confirmed live: Chrome ships
+ * `calc(100% - 38px)`), and setting `width` alone never touches it -- max-width still wins,
+ * silently capping the phone sheet narrower than the viewport. With `left:0; right:0; width`
+ * all specified, that leftover UA cap makes the box over-constrained, and CSS's resolution for
+ * that (drop `right` in ltr, recompute it from the others) leaves the dialog flush against the
+ * left edge with a bare gap on the right -- exactly the "not full width, left-aligned" bug this
+ * rule exists to prevent. max-height needed no such override only because this rule already set
+ * its OWN max-height (85dvh/80dvh below), and author styles beat UA ones automatically -- the
+ * bug was specifically the one dimension this rule forgot to also declare.
  */
 .dialog-sheet {
   position: fixed;
@@ -51,6 +62,7 @@ dialog::backdrop {
   left: 0;
   margin: 0;
   width: 100%;
+  max-width: 100%;
   max-height: 85dvh;
 }
 
@@ -59,6 +71,7 @@ dialog::backdrop {
     inset: 0;
     margin: auto;
     width: min(var(--dialog-width, 28rem), calc(100vw - 2rem));
+    max-width: none; /* let the width above be the only cap -- see the note above */
     height: fit-content;
     max-height: 80dvh;
   }
