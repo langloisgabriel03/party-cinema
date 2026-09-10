@@ -36,14 +36,6 @@ export default function Movies() {
     initPlan()
   }, [initMovies, initPlan])
 
-  // While the catalog is still streaming, ask Postgres about the query too. Without this,
-  // searching for a film that lives in page 20 of 32 shows nothing until page 20 lands -- which
-  // reads as "it isn't in there", not "it hasn't arrived yet". Skipped once everything is local,
-  // where MiniSearch is both faster and better (cast, director, ranking).
-  useEffect(() => {
-    if (moreMoviesLoading && deferredQuery.trim()) searchServerSide(deferredQuery)
-  }, [deferredQuery, moreMoviesLoading, searchServerSide])
-
   const bounds = useMemo(() => deriveFilterBounds(movies), [movies])
   const presentGenres = useMemo(
     () => getPresentGenres(movies, filterSchema.canonical_genres),
@@ -57,6 +49,14 @@ export default function Movies() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [page, setPage] = useState(1)
   const gridTopRef = useRef(null)
+
+  // While the catalog is still streaming, ask Postgres about the query too. Without this,
+  // searching for a film that lives in page 20 of 32 shows nothing until page 20 lands -- which
+  // reads as "it isn't in there", not "it hasn't arrived yet". Skipped once everything is local,
+  // where MiniSearch is both faster and better (cast, director, ranking).
+  useEffect(() => {
+    if (moreMoviesLoading && deferredQuery.trim()) searchServerSide(deferredQuery)
+  }, [deferredQuery, moreMoviesLoading, searchServerSide])
 
   // Split from the filter/sort memo below so toggling a genre chip doesn't re-run MiniSearch,
   // and so the fallback-to-plain-text decision (see resolveSearchMatches) happens on the raw
