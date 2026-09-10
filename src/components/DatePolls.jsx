@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react'
 
 import AvailabilityDialog from '@/components/AvailabilityDialog'
-import { avatarSrc } from '@/data/avatars'
+import { avatarSrc, isAdmin } from '@/data/avatars'
 import { formatNightDate, nextDates } from '@/data/dates'
 import { summarizePoll } from '@/data/plan'
-import { useAppStore } from '@/store/useAppStore'
+import { useAppStore, useCurrentProfile } from '@/store/useAppStore'
 import { usePlanStore } from '@/store/usePlanStore'
 
 // Must match AvailabilityDialog's window, or the card would advertise a best day the dialog no
@@ -18,7 +18,9 @@ const NO_ROWS = []
 function PollCard({ poll, onOpen }) {
   const profiles = useAppStore((state) => state.profiles)
   const profileId = useAppStore((state) => state.currentProfileId)
+  const admin = isAdmin(useCurrentProfile())
   const availabilityByMovie = usePlanStore((state) => state.availabilityByMovie)
+  const closeDatePoll = usePlanStore((state) => state.closeDatePoll)
 
   const rows = availabilityByMovie.get(poll.movieId) ?? NO_ROWS
   const dates = useMemo(() => nextDates(POLL_DAYS), [])
@@ -30,9 +32,19 @@ function PollCard({ poll, onOpen }) {
   const answered = mine.size > 0
 
   return (
-    <button
-      type="button"
+    // A <div role="button">, not a real <button>, specifically so the admin's remove control
+    // below can be a real nested <button> -- a <button> can't legally contain one (the browser
+    // auto-closes the outer tag, breaking the click target), same reasoning as WatchlistCard.
+    <div
+      role="button"
+      tabIndex={0}
       onClick={() => onOpen(poll)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onOpen(poll)
+        }
+      }}
       className="flex w-full cursor-pointer items-center gap-3 rounded-xl border border-neutral-800 bg-ink-soft p-3 text-left transition-colors hover:border-neutral-600 hover:bg-ink-raised"
     >
       {poll.movie?.poster ? (
@@ -85,7 +97,25 @@ function PollCard({ poll, onOpen }) {
       >
         {answered ? `You: ${mine.size}` : 'Add yours'}
       </span>
-    </button>
+
+      {/* Admin-only, and after the badge rather than overlaid on the card -- this card is short
+          enough (a thumbnail-height row) that an absolutely-positioned corner button would
+          collide with the badge above instead of sitting cleanly beside it. */}
+      {admin && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation() // don't also open the poll dialog behind it
+            closeDatePoll(poll.movieId)
+          }}
+          title="Stop asking about this film"
+          aria-label="Stop asking about this film"
+          className="flex shrink-0 size-6 cursor-pointer items-center justify-center rounded-full bg-black/40 text-xs font-bold text-neutral-400 hover:bg-red-900/60 hover:text-white"
+        >
+          ✕
+        </button>
+      )}
+    </div>
   )
 }
 

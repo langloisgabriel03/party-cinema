@@ -66,7 +66,12 @@ export default function MonthCalendar({ nightsByDate, onSelectDate }) {
               type="button"
               onClick={() => onSelectDate(iso)}
               aria-label={count > 0 ? `${dayLabel}, ${count} movie night${count > 1 ? 's' : ''}` : dayLabel}
-              className={`relative flex min-h-11 cursor-pointer items-center justify-center rounded text-sm hover:bg-ink-raised ${
+              // w-full explicitly, not left to grid's default stretch: several WebKit versions
+              // don't stretch a <button> (a replaced/form-control element) to fill its grid cell
+              // the way a <div> would, even under equal 1fr tracks -- it shrinks to fit its own
+              // content instead, leaving a ragged, left-leaning grid with empty space down the
+              // right side of the whole calendar on affected phones.
+              className={`relative flex min-h-11 w-full cursor-pointer items-center justify-center rounded text-sm hover:bg-ink-raised ${
                 iso === today ? 'font-bold text-white ring-1 ring-neutral-600' : 'text-neutral-300'
               }`}
             >

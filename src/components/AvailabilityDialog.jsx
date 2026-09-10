@@ -109,7 +109,7 @@ export default function AvailabilityDialog({ open, onClose, movie, movieId }) {
             <button
               type="button"
               onClick={onClose}
-              className="cursor-pointer rounded-lg bg-brand py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-hover"
+              className="w-full cursor-pointer rounded-lg bg-brand py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-hover"
             >
               Done
             </button>
@@ -126,13 +126,22 @@ export default function AvailabilityDialog({ open, onClose, movie, movieId }) {
               )}
             </p>
 
+            {/*
+              Each day's own colour depends only on that day's own respondents -- never on how it
+              compares to any other day. That used to double as the "currently winning" signal
+              (a ring on whichever day(s) were tied for most), which meant marking your own day
+              could visibly strip the ring off a DIFFERENT day the instant it fell out of the
+              lead -- a day someone had genuinely told you they were free on, going from "green"
+              to plain the moment a rival day pulled ahead. Confusing to watch happen, and not
+              actually useful: "who's winning" already has its own answer below (Best so far),
+              with the tie-break buttons to act on it. A day chip only ever needs to say "is
+              anyone free" and "am I", and neither changes when a different day gets more votes.
+            */}
             <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-7">
               {dates.map((iso) => {
                 const people = byDate.get(iso) ?? []
                 const isMine = mine.has(iso)
-                // Only worth crowning once someone has actually answered, and never when every
-                // day is equally empty -- a "best" day with nobody on it is just noise.
-                const isBest = best.includes(iso) && topCount > 0
+                const hasAnyone = people.length > 0
                 return (
                   <button
                     key={iso}
@@ -144,24 +153,39 @@ export default function AvailabilityDialog({ open, onClose, movie, movieId }) {
                         ? `${formatNightDate(iso)} — ${people.map((p) => p.name).join(', ')}`
                         : formatNightDate(iso)
                     }
-                    className={`flex cursor-pointer flex-col items-center gap-0.5 rounded-lg border py-2 transition-colors ${
+                    className={`flex cursor-pointer flex-col items-center gap-0.5 rounded-lg py-1.5 transition-colors ${
                       isMine
-                        ? 'border-brand bg-brand/25 text-white'
-                        : 'border-neutral-800 bg-ink-raised text-neutral-300 hover:border-neutral-600'
-                    } ${isBest ? 'ring-1 ring-green-500' : ''}`}
+                        ? 'border-2 border-green-500 bg-green-600/25 text-white'
+                        : hasAnyone
+                          ? 'border border-green-600 bg-ink-raised text-neutral-200 hover:border-green-500'
+                          : 'border border-neutral-800 bg-ink-raised text-neutral-300 hover:border-neutral-600'
+                    }`}
                   >
                     <span className="text-[10px] tracking-wide text-neutral-400 uppercase">
                       {weekdayLabel(iso)}
                     </span>
                     <span className="text-sm leading-none font-semibold">{dayOfMonth(iso)}</span>
                     {/* A fixed-height slot either way, so marking a day doesn't reflow the grid. */}
-                    <span className="flex h-4 items-center text-[10px] font-semibold">
-                      {people.length > 0 ? (
-                        <span className={isBest ? 'text-green-400' : 'text-neutral-400'}>
-                          {people.length} can
+                    <span className="flex h-4 items-center">
+                      {hasAnyone ? (
+                        <span className="flex -space-x-1.5">
+                          {people.slice(0, 4).map((person) => (
+                            <img
+                              key={person.id}
+                              src={avatarSrc(person.avatar)}
+                              alt=""
+                              title={person.name}
+                              className="size-4 rounded-full border border-ink-soft object-cover"
+                            />
+                          ))}
+                          {people.length > 4 && (
+                            <span className="flex size-4 items-center justify-center rounded-full border border-ink-soft bg-ink-raised text-[7px] font-semibold text-neutral-300">
+                              +{people.length - 4}
+                            </span>
+                          )}
                         </span>
                       ) : (
-                        <span className="text-neutral-700">—</span>
+                        <span className="text-[10px] text-neutral-700">—</span>
                       )}
                     </span>
                   </button>

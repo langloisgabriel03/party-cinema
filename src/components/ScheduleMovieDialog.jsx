@@ -127,7 +127,7 @@ export default function ScheduleMovieDialog({ open, onClose, movie, movieId }) {
             <button
               type="button"
               onClick={onClose}
-              className="cursor-pointer rounded-lg bg-brand py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-hover"
+              className="w-full cursor-pointer rounded-lg bg-brand py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-hover"
             >
               Done
             </button>
@@ -151,7 +151,7 @@ export default function ScheduleMovieDialog({ open, onClose, movie, movieId }) {
             <button
               type="button"
               onClick={() => setMode('calendar')}
-              className="flex cursor-pointer items-center gap-3 rounded-xl bg-ink-raised p-4 text-left transition-colors hover:bg-neutral-700"
+              className="flex w-full cursor-pointer items-center gap-3 rounded-xl bg-ink-raised p-4 text-left transition-colors hover:bg-neutral-700"
             >
               <span className="text-2xl" aria-hidden="true">
                 📅
@@ -168,7 +168,7 @@ export default function ScheduleMovieDialog({ open, onClose, movie, movieId }) {
               type="button"
               onClick={handleAskEveryone}
               disabled={busy || polled}
-              className="flex cursor-pointer items-center gap-3 rounded-xl bg-ink-raised p-4 text-left transition-colors hover:bg-neutral-700 disabled:cursor-default disabled:opacity-60 disabled:hover:bg-ink-raised"
+              className="flex w-full cursor-pointer items-center gap-3 rounded-xl bg-ink-raised p-4 text-left transition-colors hover:bg-neutral-700 disabled:cursor-default disabled:opacity-60 disabled:hover:bg-ink-raised"
             >
               <span className="text-2xl" aria-hidden="true">
                 🙋
