@@ -52,3 +52,25 @@ export function formatWatchedDate(iso) {
     ...(sameYear ? {} : { year: 'numeric' }),
   })
 }
+
+/**
+ * The next `count` days starting today, as ISO strings -- the option list a date poll offers.
+ *
+ * Walks a local Date rather than adding 86_400_000 to a timestamp: a day is not always 24 hours
+ * long, and on a DST boundary the arithmetic version silently repeats or skips one. Passing
+ * `d + i` to the Date constructor also rolls over month and year ends for free.
+ */
+export function nextDates(count, from = new Date()) {
+  const dates = []
+  for (let i = 0; i < count; i++) {
+    dates.push(toISODate(new Date(from.getFullYear(), from.getMonth(), from.getDate() + i)))
+  }
+  return dates
+}
+
+/** "Fri" -- the weekday on its own, for the day chips in a date poll. */
+export const weekdayLabel = (iso) =>
+  fromISODate(iso).toLocaleDateString(undefined, { weekday: 'short' })
+
+/** The day-of-month number, straight off the ISO string -- no Date, no parsing, no UTC. */
+export const dayOfMonth = (iso) => Number(iso.slice(8))

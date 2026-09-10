@@ -63,7 +63,7 @@ export default function EditProfileDialog({ open, onClose, profile, switchable, 
       onClick={(event) => {
         if (event.target === dialogRef.current) onClose()
       }}
-      className="fixed inset-x-0 top-auto bottom-0 m-0 max-h-[85dvh] w-full overscroll-contain overflow-y-auto rounded-t-2xl border-t border-neutral-800 bg-ink-soft p-0 text-white sm:static sm:m-auto sm:h-fit sm:max-h-[80dvh] sm:w-[min(26rem,calc(100vw-2rem))] sm:rounded-lg sm:border"
+      className="dialog-sheet [--dialog-width:26rem] overscroll-contain overflow-y-auto rounded-t-2xl border-t border-neutral-800 bg-ink-soft p-0 text-white sm:rounded-lg sm:border"
     >
       <div className="flex flex-col gap-4 p-5 pb-8">
         <div className="flex items-center justify-between">

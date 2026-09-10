@@ -35,6 +35,17 @@ function setNightMovies(set, items) {
   set({ nightMovies: items, nightMoviesByNight: indexByFirst(items, 'night_id', 'movie_id') })
 }
 
+/** Same derived-index discipline: Map<movie_id, availability row[]>, rebuilt on every write. */
+function setAvailability(set, items) {
+  const byMovie = new Map()
+  for (const row of items) {
+    const list = byMovie.get(row.movie_id) ?? []
+    list.push(row)
+    byMovie.set(row.movie_id, list)
+  }
+  set({ pollAvailability: items, availabilityByMovie: byMovie })
+}
+
 /** Same derived-index discipline: Map<night_id, rsvp[]>, rebuilt on every write, never in a selector. */
 function setRsvps(set, items) {
   const byNight = new Map()
@@ -86,6 +97,39 @@ async function fetchRouletteEntries() {
   }
   return data
 }
+
+async function fetchDatePolls() {
+  const { data, error } = await supabase.from('date_polls').select('movie_id, created_by, created_at')
+  if (error) {
+    // date_poll_schema.sql is a manual paste-in-dashboard migration like the rest of this app's
+    // schema, so it can lag a deploy. Treat a missing table as "no open polls" rather than
+    // failing refreshPlan's Promise.all and taking the whole dashboard down with it.
+    console.warn('date_polls fetch failed (has date_poll_schema.sql been run?):', error.message)
+    return []
+  }
+  return data
+}
+
+async function fetchPollAvailability() {
+  const { data, error } = await supabase
+    .from('poll_availability')
+    .select('movie_id, profile_id, available_on')
+  if (error) {
+    console.warn('poll_availability fetch failed (has date_poll_schema.sql been run?):', error.message)
+    return []
+  }
+  return data
+}
+
+/**
+ * Whole-row identity for poll_availability: every column is part of the PK, so this is both the
+ * dedupe key for echoed inserts and the delete target. Number() because a bigint can arrive from
+ * realtime as a string, which would never match a numeric id already in state.
+ */
+const sameAvailability = (a, b) =>
+  a.movie_id === Number(b.movie_id) &&
+  a.profile_id === b.profile_id &&
+  a.available_on === b.available_on
 
 /** Wires every table handler onto a channel. Reconnection is createResilientChannel's job. */
 function bindPlanHandlers(set, get, channel) {
@@ -146,6 +190,27 @@ function bindPlanHandlers(set, get, channel) {
       )
       setRsvps(set, index === -1 ? [...current, row] : current.map((r, i) => (i === index ? row : r)))
     })
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'date_polls' }, ({ new: row }) => {
+      const current = get().datePolls
+      if (current.some((poll) => poll.movie_id === row.movie_id)) return
+      set({ datePolls: [...current, row] })
+    })
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'date_polls' }, ({ old: row }) => {
+      const movieId = Number(row.movie_id)
+      set({ datePolls: get().datePolls.filter((poll) => poll.movie_id !== movieId) })
+      // The cascade delete of poll_availability fires its own DELETE events, but only for rows
+      // Postgres actually removed -- dropping them here too keeps the client consistent even if
+      // those events are lost, and the handler below is idempotent either way.
+      setAvailability(set, get().pollAvailability.filter((a) => a.movie_id !== movieId))
+    })
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'poll_availability' }, ({ new: row }) => {
+      const current = get().pollAvailability
+      if (current.some((a) => sameAvailability(a, row))) return
+      setAvailability(set, [...current, row])
+    })
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'poll_availability' }, ({ old: row }) => {
+      setAvailability(set, get().pollAvailability.filter((a) => !sameAvailability(a, row)))
+    })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'roulette_entries' }, ({ new: row }) => {
       const current = get().rouletteEntries
       if (current.some((item) => item.movie_id === row.movie_id && item.added_by === row.added_by)) return
@@ -168,6 +233,9 @@ export const usePlanStore = create((set, get) => ({
   nightMovies: [],
   nightMoviesByNight: new Map(),
   rouletteEntries: [],
+  datePolls: [],
+  pollAvailability: [],
+  availabilityByMovie: new Map(),
   rsvps: [],
   rsvpsByNight: new Map(),
   planLoading: true,
@@ -182,17 +250,21 @@ export const usePlanStore = create((set, get) => ({
   refreshPlan: async () => {
     set({ planRefreshing: true })
     try {
-      const [watchlist, nights, nightMovies, rouletteEntries, rsvps] = await Promise.all([
-        fetchWatchlist(),
-        fetchNights(),
-        fetchNightMovies(),
-        fetchRouletteEntries(),
-        fetchRsvps(),
-      ])
+      const [watchlist, nights, nightMovies, rouletteEntries, rsvps, datePolls, availability] =
+        await Promise.all([
+          fetchWatchlist(),
+          fetchNights(),
+          fetchNightMovies(),
+          fetchRouletteEntries(),
+          fetchRsvps(),
+          fetchDatePolls(),
+          fetchPollAvailability(),
+        ])
       setWatchlist(set, watchlist)
       setNightMovies(set, nightMovies)
       setRsvps(set, rsvps)
-      set({ nights, rouletteEntries, planLoading: false, planRefreshing: false, planError: null })
+      setAvailability(set, availability)
+      set({ nights, rouletteEntries, datePolls, planLoading: false, planRefreshing: false, planError: null })
     } catch (error) {
       set({ planLoading: false, planRefreshing: false, planError: error.message })
     }
@@ -343,6 +415,85 @@ export const usePlanStore = create((set, get) => ({
 
     if (error) {
       setRsvps(set, previous)
+      set({ planError: error.message })
+    }
+  },
+
+  /**
+   * "Ask everyone when they can" -- opens the date poll that the dashboard renders above the
+   * calendar. Idempotent by design: the table's PK is movie_id, so a second person asking the
+   * same question lands on the existing poll rather than creating a rival one.
+   */
+  openDatePoll: async (movieId, profileId) => {
+    const previous = get().datePolls
+    if (previous.some((poll) => poll.movie_id === movieId)) return
+    set({
+      datePolls: [
+        ...previous,
+        { movie_id: movieId, created_by: profileId, created_at: new Date().toISOString() },
+      ],
+    })
+    const { error } = await supabase
+      .from('date_polls')
+      .insert({ movie_id: movieId, created_by: profileId ?? null })
+    // 23505 = unique violation: someone else opened the same poll a moment ago. The end state is
+    // exactly what's on screen, so rolling back here would be the bug (same as toggleWatchlist).
+    if (error && error.code !== '23505') {
+      set({ datePolls: previous, planError: error.message })
+    }
+  },
+
+  /**
+   * Closes the question. The DB cascade takes poll_availability with it (see date_poll_schema.sql
+   * for why answers must not outlive their poll), so the local state drops both here too.
+   */
+  closeDatePoll: async (movieId) => {
+    const previousPolls = get().datePolls
+    const previousAvailability = get().pollAvailability
+    set({ datePolls: previousPolls.filter((poll) => poll.movie_id !== movieId) })
+    setAvailability(set, previousAvailability.filter((row) => row.movie_id !== movieId))
+
+    const { error } = await supabase.from('date_polls').delete().eq('movie_id', movieId)
+    if (error) {
+      set({ datePolls: previousPolls, planError: error.message })
+      setAvailability(set, previousAvailability)
+    }
+  },
+
+  /**
+   * One person marking (or un-marking) one day. A row IS the "yes" -- there's no false state to
+   * store -- so this is an insert/delete pair, not an upsert, and tapping a day you already
+   * picked takes it back.
+   */
+  toggleAvailability: async (movieId, profileId, iso) => {
+    const previous = get().pollAvailability
+    const marked = previous.some(
+      (row) => row.movie_id === movieId && row.profile_id === profileId && row.available_on === iso
+    )
+
+    setAvailability(
+      set,
+      marked
+        ? previous.filter(
+            (row) =>
+              !(row.movie_id === movieId && row.profile_id === profileId && row.available_on === iso)
+          )
+        : [...previous, { movie_id: movieId, profile_id: profileId, available_on: iso }]
+    )
+
+    const { error } = marked
+      ? await supabase
+          .from('poll_availability')
+          .delete()
+          .eq('movie_id', movieId)
+          .eq('profile_id', profileId)
+          .eq('available_on', iso)
+      : await supabase
+          .from('poll_availability')
+          .insert({ movie_id: movieId, profile_id: profileId, available_on: iso })
+
+    if (error && error.code !== '23505') {
+      setAvailability(set, previous)
       set({ planError: error.message })
     }
   },

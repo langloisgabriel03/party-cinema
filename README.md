@@ -1,7 +1,10 @@
 # Party Cinema 🍿
 
 Plan movie nights with friends: everyone browses a 5,851-movie catalog and adds what they want to watch,
-then a calendar schedules a night and (optionally) picks a film from the list. Once a night has been
+then a calendar schedules a night and (optionally) picks a film from the list. Tapping a film on the
+watchlist offers both ways to answer "when?": pick the date yourself, or **ask everyone when they
+can** — a date poll that lands above the calendar on everyone's dashboard, where each person taps the
+evenings they could do and the best night can be booked straight from the tally. Once a night has been
 and gone its film drops out of "Soon to watch" and into the dashboard's **Watched** shelf, dated.
 Picking a date that's already past logs a film we saw without notifying anyone — the "just put it in
 the calendar" flow. Installable as a home screen app, with a push notification when someone books a
@@ -76,27 +79,33 @@ src/
     supabaseClient.js              Supabase client, degrades gracefully if env vars are missing
     movies.js                      fetchAllMovies() -- paginates past PostgREST's 1000-row cap
     push.js                        web push subscribe/unsubscribe, iOS/standalone detection, SW registration
+    scheduling.js                  the one place that books a film onto a date -- attaches to an
+                                    existing night, stays silent for a past one, closes its date poll
   store/
     useAppStore.js                 profiles (shared) + currentProfileId (local, the only persisted field)
     useMovieCatalogStore.js        the 5,851-row catalog + MiniSearch index + moviesById/ensureMovies
                                     (targeted backfill for the dashboard, without fetching the whole catalog)
-    usePlanStore.js                shared watchlist_items + nights, realtime, optimistic writes
+    usePlanStore.js                shared watchlist_items + nights + date polls, realtime, optimistic writes
   data/
     avatars.js                     built-in + personal photo avatars (profiles store the id, not the URL)
     filterSchema.json              genre taxonomy + list labels, copied from the rt-dashboard scraper project
     movieCatalog.js                pure helpers: filtering, sorting, weighted score, year-aware search parser
     plan.js                        pure helpers: grouping the watchlist by movie, sorting/filtering nights,
-                                    deriving the Watched list from nights that have already happened
+                                    deriving the Watched list from nights that have already happened,
+                                    tallying a date poll's answers
     dates.js                       date-only helpers -- see the big comment there about UTC boundary bugs
   pages/
     ProfileSelect.jsx              "Who's watching?"
-    Dashboard.jsx                  next night, calendar, upcoming nights, watchlist, watched history
+    Dashboard.jsx                  next night, open date polls, calendar, upcoming nights, watchlist,
+                                    watched history
     Movies.jsx                     search/filter/browse the catalog, add to watchlist
   components/
     AppHeader.jsx, ProfileCard.jsx, AddProfileDialog.jsx
     MovieCard.jsx, MovieFilterDialog.jsx, WatchlistButton.jsx
     MonthCalendar.jsx, NightDialog.jsx, WatchlistCard.jsx, UpcomingNights.jsx
     WatchedMovies.jsx              the history shelf: past nights' films, newest first, with the date
+    DatePolls.jsx, AvailabilityDialog.jsx    "when can everyone do this?" -- the strip above the
+                                    calendar and the day grid behind it
     PushPrompt.jsx                 dismissible "turn on notifications" row, iOS "add to home screen" hint
 public/
   manifest.webmanifest, icons/, apple-touch-icon.png    PWA install shell
@@ -109,6 +118,8 @@ supabase/
                           nights.movie_id/start_time -- nights are day-only, apply after plan_schema.sql
   push_schema.sql         push_subscriptions (RLS on, zero policies -- see the comment in the file for
                           why) + security-definer RPCs + the night_notifications replay guard
+  date_poll_schema.sql    date_polls + poll_availability: "when can everyone do this film?", one row
+                          per (film, person, day). Apply after plan_schema.sql
   functions/notify-night.ts   sends the push -- deployed by pasting into the Supabase dashboard,
                           not the CLI; kept here for version control
 ```

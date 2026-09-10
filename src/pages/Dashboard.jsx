@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import AppHeader from '@/components/AppHeader'
+import DatePolls from '@/components/DatePolls'
 import EditProfileDialog from '@/components/EditProfileDialog'
 import MonthCalendar from '@/components/MonthCalendar'
 import NightDialog from '@/components/NightDialog'
@@ -14,6 +15,7 @@ import { formatNightDate, todayISO } from '@/data/dates'
 import {
   groupWatchlist,
   nextUpcomingNight,
+  openPolls,
   referencedMovieIds,
   unwatchedEntries,
   upcomingNights,
@@ -25,7 +27,7 @@ import { useMovieCatalogStore } from '@/store/useMovieCatalogStore'
 import { usePlanStore } from '@/store/usePlanStore'
 
 const NIGHTS_PREVIEW_COUNT = 7
-const WATCHED_PREVIEW_COUNT = 6
+const WATCHED_PREVIEW_COUNT = 8
 
 export default function Dashboard() {
   const profile = useCurrentProfile()
@@ -37,6 +39,7 @@ export default function Dashboard() {
   const nightMovies = usePlanStore((state) => state.nightMovies)
   const nightMoviesByNight = usePlanStore((state) => state.nightMoviesByNight)
   const rsvpsByNight = usePlanStore((state) => state.rsvpsByNight)
+  const datePolls = usePlanStore((state) => state.datePolls)
   const planLoading = usePlanStore((state) => state.planLoading)
   const planRefreshing = usePlanStore((state) => state.planRefreshing)
   const planError = usePlanStore((state) => state.planError)
@@ -65,7 +68,10 @@ export default function Dashboard() {
 
   // Targeted backfill: only the movies the watchlist/nights actually reference (not the full
   // catalog) -- see useMovieCatalogStore's ensureMovies for why this beats an eager full fetch.
-  const ids = useMemo(() => referencedMovieIds(watchlist, nightMovies), [watchlist, nightMovies])
+  const ids = useMemo(
+    () => referencedMovieIds(watchlist, nightMovies, datePolls),
+    [watchlist, nightMovies, datePolls]
+  )
   useEffect(() => {
     if (ids.length) ensureMovies(ids)
   }, [ids, ensureMovies])
@@ -82,6 +88,7 @@ export default function Dashboard() {
   // rather than sitting in both sections. `allEntries` stays whole for anything that needs the
   // real watchlist regardless of history.
   const entries = useMemo(() => unwatchedEntries(allEntries, watched), [allEntries, watched])
+  const polls = useMemo(() => openPolls(datePolls, moviesById), [datePolls, moviesById])
   const upcoming = useMemo(() => upcomingNights(nights), [nights])
   const nextNight = useMemo(() => nextUpcomingNight(nights), [nights])
   const nightsByDate = useMemo(() => {
@@ -217,6 +224,8 @@ export default function Dashboard() {
                   <p className="text-sm text-neutral-400">No movie nights scheduled yet — tap to add one.</p>
                 </button>
               )}
+
+              <DatePolls polls={polls} />
 
               <MonthCalendar nightsByDate={nightsByDate} onSelectDate={setSelectedDate} />
 

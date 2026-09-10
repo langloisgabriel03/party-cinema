@@ -1,6 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { pastNights, unwatchedEntries, upcomingNights, watchedEntries } from './plan'
+import { nextDates } from './dates'
+import {
+  openPolls,
+  pastNights,
+  summarizePoll,
+  unwatchedEntries,
+  upcomingNights,
+  watchedEntries,
+} from './plan'
 
 // "Watched" is entirely a question of where today's boundary falls, so every test here pins the
 // clock. Fake timers only -- no timezone juggling: dates.js's own suite covers that, and these
@@ -130,5 +138,85 @@ describe('unwatchedEntries', () => {
   it('is a no-op with nothing watched', () => {
     const entries = [{ movieId: 1 }]
     expect(unwatchedEntries(entries, [])).toEqual(entries)
+  })
+})
+
+describe('openPolls', () => {
+  it('is newest question first and tolerates a movie the catalog has not backfilled', () => {
+    const polls = openPolls(
+      [
+        { movie_id: 1, created_at: '2026-09-01T10:00:00Z', created_by: 'p1' },
+        { movie_id: 2, created_at: '2026-09-05T10:00:00Z', created_by: 'p2' },
+      ],
+      catalog(1)
+    )
+    expect(polls.map((p) => p.movieId)).toEqual([2, 1])
+    expect(polls[0].movie).toBeNull()
+    expect(polls[1].movie.title).toBe('Movie 1')
+  })
+})
+
+describe('summarizePoll', () => {
+  const profiles = [
+    { id: 'p1', name: 'Ana' },
+    { id: 'p2', name: 'Bo' },
+    { id: 'p3', name: 'Cy' },
+  ]
+  const dates = ['2026-09-09', '2026-09-10', '2026-09-11']
+  const row = (profile, date) => ({ movie_id: 1, profile_id: profile, available_on: date })
+
+  it('tallies per day, crowns the busiest and tracks my own picks', () => {
+    const result = summarizePoll({
+      rows: [
+        row('p1', '2026-09-10'),
+        row('p2', '2026-09-10'),
+        row('p3', '2026-09-11'),
+        row('p1', '2026-09-11'),
+      ],
+      dates,
+      profiles,
+      profileId: 'p1',
+    })
+    expect(result.byDate.get('2026-09-09')).toEqual([])
+    expect(result.topCount).toBe(2)
+    // Two days tie on 2 -- both are offered, no arbitrary winner.
+    expect(result.best).toEqual(['2026-09-10', '2026-09-11'])
+    expect([...result.mine]).toEqual(['2026-09-10', '2026-09-11'])
+    expect(result.responders.map((p) => p.name).sort()).toEqual(['Ana', 'Bo', 'Cy'])
+  })
+
+  it('has no best day until somebody answers', () => {
+    const result = summarizePoll({ rows: [], dates, profiles, profileId: 'p1' })
+    expect(result.best).toEqual([])
+    expect(result.topCount).toBe(0)
+    expect(result.responders).toEqual([])
+    // Every offered day still has an entry, so the grid renders the same shape either way.
+    expect([...result.byDate.keys()]).toEqual(dates)
+  })
+
+  it('ignores an answer for a day that is no longer offered', () => {
+    const result = summarizePoll({
+      rows: [row('p1', '2026-08-01'), row('p2', '2026-09-10')],
+      dates,
+      profiles,
+      profileId: 'p1',
+    })
+    expect(result.topCount).toBe(1)
+    expect(result.mine.size).toBe(0)
+    expect(result.responders.map((p) => p.name)).toEqual(['Bo'])
+  })
+})
+
+describe('nextDates', () => {
+  it('starts today and runs consecutively', () => {
+    expect(nextDates(3)).toEqual(['2026-09-09', '2026-09-10', '2026-09-11'])
+  })
+
+  it('rolls over a month end', () => {
+    expect(nextDates(3, new Date(2026, 8, 29))).toEqual(['2026-09-29', '2026-09-30', '2026-10-01'])
+  })
+
+  it('rolls over a year end', () => {
+    expect(nextDates(2, new Date(2026, 11, 31))).toEqual(['2026-12-31', '2027-01-01'])
   })
 })

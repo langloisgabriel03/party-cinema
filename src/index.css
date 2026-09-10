@@ -29,6 +29,41 @@ dialog::backdrop {
   background-color: rgb(0 0 0 / 0.7);
 }
 
+/*
+ * Shared <dialog> shell: a bottom sheet on phones, a centred card from sm up. Six dialogs used
+ * to carry their own copy of this as a long utility string.
+ *
+ * The desktop half was `sm:static sm:m-auto`, which is what stopped the dialog being centred:
+ * a modal <dialog> is centred by the UA's `position:fixed; inset:0; margin:auto`, and switching
+ * it to `static` throws away the insets, so it landed wherever normal flow put it (bottom of
+ * the viewport, and drifting with page height) with only its horizontal auto-margins working.
+ *
+ * Plain CSS rather than utilities because the desktop half has to override the phone half's own
+ * top/bottom/margin. Two utilities of equal specificity are settled by stylesheet order, which
+ * is Tailwind's to decide and can change with a class-sort; a rule after the @import always
+ * wins. Per-dialog width comes from --dialog-width: class="dialog-sheet [--dialog-width:32rem]".
+ */
+.dialog-sheet {
+  position: fixed;
+  top: auto;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  margin: 0;
+  width: 100%;
+  max-height: 85dvh;
+}
+
+@media (width >= 40rem) {
+  .dialog-sheet {
+    inset: 0;
+    margin: auto;
+    width: min(var(--dialog-width, 28rem), calc(100vw - 2rem));
+    height: fit-content;
+    max-height: 80dvh;
+  }
+}
+
 /* Gentle continuous nudge -- draws the eye to a button without being obnoxious like animate-bounce. */
 @keyframes nudge {
   0%,

@@ -4,12 +4,15 @@ import { isPastDate, todayISO } from '@/data/dates'
 
 /**
  * Every movie id referenced anywhere -- the backfill list for useMovieCatalogStore's
- * ensureMovies(). Deduplicated since a movie can be both on the watchlist and attached to a night.
+ * ensureMovies(). Deduplicated since a movie can be on the watchlist, attached to a night and
+ * being polled for a date all at once. Polls are included because a film can be dropped from the
+ * watchlist while its poll is still open, and a poll card with no poster or title is useless.
  */
-export function referencedMovieIds(watchlist, nightMovies) {
+export function referencedMovieIds(watchlist, nightMovies, datePolls = []) {
   const ids = new Set()
   for (const item of watchlist) ids.add(item.movie_id)
   for (const nm of nightMovies) ids.add(nm.movie_id)
+  for (const poll of datePolls) ids.add(poll.movie_id)
   return [...ids]
 }
 
@@ -106,4 +109,55 @@ export function watchedEntries({ nights, nightMoviesByNight, moviesById, rsvpsBy
 export function unwatchedEntries(entries, watched) {
   const seen = new Set(watched.map((entry) => entry.movieId))
   return entries.filter((entry) => !seen.has(entry.movieId))
+}
+
+/**
+ * The open date polls, joined to their films and newest question first -- what the dashboard
+ * shows above the calendar. `movie` is null until useMovieCatalogStore's ensureMovies() backfills
+ * it, same contract as groupWatchlist().
+ */
+export function openPolls(datePolls, moviesById) {
+  return [...datePolls]
+    .sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''))
+    .map((poll) => ({
+      movieId: poll.movie_id,
+      movie: moviesById.get(poll.movie_id) ?? null,
+      createdBy: poll.created_by,
+    }))
+}
+
+/**
+ * Counts up one poll's answers against a fixed list of candidate days.
+ *
+ * `dates` is passed in rather than derived from the rows so the grid stays the same shape
+ * whether or not anyone has answered, and so a stale row for a day that has since passed simply
+ * doesn't appear (no filtering, no cleanup job -- the day just stops being offered).
+ *
+ * Returns `byDate` (Map<iso, profile[]>), `best` (the days with the most takers, ties included,
+ * empty until someone answers), `mine` (a Set of the current profile's days, for the toggled
+ * state of each chip) and `responders` (everyone who has answered at all, for "3 of 5 replied").
+ */
+export function summarizePoll({ rows, dates, profiles, profileId }) {
+  const profileById = new Map(profiles.map((p) => [p.id, p]))
+  const offered = new Set(dates)
+  const byDate = new Map(dates.map((iso) => [iso, []]))
+  const mine = new Set()
+  const responders = new Set()
+
+  for (const row of rows) {
+    if (!offered.has(row.available_on)) continue // a day that has since passed
+    const profile = profileById.get(row.profile_id)
+    if (profile) byDate.get(row.available_on).push(profile)
+    responders.add(row.profile_id)
+    if (row.profile_id === profileId) mine.add(row.available_on)
+  }
+
+  const top = Math.max(0, ...dates.map((iso) => byDate.get(iso).length))
+  return {
+    byDate,
+    best: top > 0 ? dates.filter((iso) => byDate.get(iso).length === top) : [],
+    topCount: top,
+    mine,
+    responders: [...responders].map((id) => profileById.get(id)).filter(Boolean),
+  }
 }

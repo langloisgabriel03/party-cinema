@@ -5,16 +5,17 @@ import { scoreColor } from '@/data/movieCatalog'
 /**
  * The history shelf: films whose night has already been and gone, newest first.
  *
- * Deliberately a row list rather than the poster grid "Soon to watch" uses -- these are records,
- * not choices, and a row has space for the thing that makes a record worth keeping (when we
- * watched it, who was there) without competing for attention with the films still to come.
- * Posters sit desaturated until hover, so the shelf reads as archive at a glance.
+ * Two compact columns at every width -- history should cost as little vertical space as
+ * possible, since the sections above it (next night, what's still to come) are the ones anyone
+ * actually acts on. That budget is why the date sits inline under the title rather than in a
+ * right-hand stub: at two-up on a phone there is no room for a second column of text.
+ * Posters stay desaturated until hover, so the shelf reads as archive at a glance.
  *
  * `entries` are watchedEntries() rows: { movieId, movie, watchedOn, nightId, times, watchedBy }.
  */
 export default function WatchedMovies({ entries, onSelect }) {
   return (
-    <ol className="flex flex-col gap-2">
+    <ol className="grid grid-cols-2 gap-2">
       {entries.map((entry) => {
         const { movie } = entry
         return (
@@ -23,9 +24,9 @@ export default function WatchedMovies({ entries, onSelect }) {
               type="button"
               onClick={() => onSelect(entry.watchedOn)}
               title={movie ? `${movie.title} — watched ${formatWatchedDate(entry.watchedOn)}` : undefined}
-              className="group flex w-full cursor-pointer items-center gap-3 rounded-lg bg-ink-soft p-2.5 text-left transition-colors hover:bg-ink-raised"
+              className="group flex h-full w-full cursor-pointer items-center gap-2.5 rounded-lg bg-ink-soft p-2 text-left transition-colors hover:bg-ink-raised"
             >
-              <div className="relative w-11 shrink-0">
+              <div className="relative w-10 shrink-0">
                 {movie?.poster ? (
                   <img
                     src={movie.poster}
@@ -40,47 +41,42 @@ export default function WatchedMovies({ entries, onSelect }) {
                   </div>
                 )}
                 {/* The tick is the whole point of the row -- keep it on the poster, where the eye
-                    lands first, not in the text column with everything else. */}
+                    lands first, not in the text column that's already fighting for width. */}
                 <span
                   aria-hidden="true"
-                  className="absolute -right-1 -bottom-1 flex size-5 items-center justify-center rounded-full bg-green-600 text-[10px] font-bold text-white ring-2 ring-ink"
+                  className="absolute -right-1 -bottom-1 flex size-4 items-center justify-center rounded-full bg-green-600 text-[9px] font-bold text-white ring-2 ring-ink"
                 >
                   ✓
                 </span>
               </div>
 
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-white">
+                <p className="line-clamp-2 text-xs leading-tight font-medium text-white">
                   {movie?.title ?? 'Loading…'}
                 </p>
-                <p className="flex items-center gap-2 text-xs text-neutral-500">
-                  {movie?.year && <span>{movie.year}</span>}
+                <p className="mt-0.5 truncate text-[11px] text-neutral-500">
+                  <span className="font-semibold text-green-400">
+                    {formatWatchedDate(entry.watchedOn)}
+                  </span>
                   {movie?.tomatometer != null && (
-                    <span className={scoreColor(movie.tomatometer)}>🍅 {movie.tomatometer}%</span>
+                    <span className={scoreColor(movie.tomatometer)}> · 🍅 {movie.tomatometer}%</span>
                   )}
-                  {entry.times > 1 && (
-                    <span className="text-neutral-400">Seen {entry.times}×</span>
-                  )}
+                  {entry.times > 1 && <span className="text-neutral-400"> · {entry.times}×</span>}
                 </p>
                 {entry.watchedBy.length > 0 && (
-                  <div className="mt-1 flex -space-x-2">
+                  <div className="mt-1 flex -space-x-1.5">
                     {entry.watchedBy.map((profile) => (
                       <img
                         key={profile.id}
                         src={avatarSrc(profile.avatar)}
                         alt=""
                         title={`${profile.name} was there`}
-                        className="size-6 rounded-full border-2 border-ink-soft object-cover group-hover:border-ink-raised"
+                        className="size-5 rounded-full border border-ink-soft object-cover group-hover:border-ink-raised"
                       />
                     ))}
                   </div>
                 )}
               </div>
-
-              {/* Ticket-stub date: the one piece of information this list exists to show. */}
-              <span className="shrink-0 rounded-md border border-neutral-700 px-2 py-1 text-center text-[11px] leading-tight font-semibold tracking-wide text-neutral-300 uppercase transition-colors group-hover:border-neutral-500 group-hover:text-white">
-                {formatWatchedDate(entry.watchedOn)}
-              </span>
             </button>
           </li>
         )

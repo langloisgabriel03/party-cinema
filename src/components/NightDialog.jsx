@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import CatalogSearchPicker from '@/components/CatalogSearchPicker'
 import NightRsvp from '@/components/NightRsvp'
 import { isPastDate } from '@/data/dates'
-import { notifyNightBooked } from '@/lib/push'
+import { scheduleMovieOn } from '@/lib/scheduling'
 import { useAppStore } from '@/store/useAppStore'
 import { usePlanStore } from '@/store/usePlanStore'
 
@@ -92,8 +92,6 @@ export default function NightDialog({
 }) {
   const dialogRef = useRef(null)
   const profileId = useAppStore((state) => state.currentProfileId)
-  const scheduleNight = usePlanStore((state) => state.scheduleNight)
-  const addMovieToNight = usePlanStore((state) => state.addMovieToNight)
   const isPast = isPastDate(iso)
 
   useEffect(() => {
@@ -107,19 +105,11 @@ export default function NightDialog({
   // result creates the night, attaches the film, and closes the dialog in one action -- the
   // choice is done, no confirmation view to linger on.
   const handlePickForNewNight = async (movieId) => {
-    const night = await scheduleNight({ scheduledFor: iso, createdBy: profileId })
-    if (night) {
-      // Awaited here (unlike NightRow's fire-and-forget addMovieToNight, which attaches a film
-      // to an *existing* night -- not a notify event): notify-night reads night_movies to name
-      // the film, so that row has to exist before it's invoked, or the notification goes out as
-      // a bare date with no title.
-      await addMovieToNight(night.id, movieId, profileId)
-      // A past date is someone recording a film we already saw, not booking anything -- buzzing
-      // everyone's phone about a night that's already been and gone is pure noise. The date
-      // check is local (isPastDate), not the Edge Function's UTC one, because "is tonight still
-      // ahead of us?" is only answerable in the viewer's own zone.
-      if (!isPast) notifyNightBooked(night.id)
-    }
+    // scheduleMovieOn owns the whole booking: creating the night, attaching the film before
+    // notify-night reads it, staying silent for a past date, and closing any open date poll for
+    // that film. NightRow's own "+ Add a film" stays a plain addMovieToNight -- attaching to a
+    // night that already exists isn't a booking.
+    await scheduleMovieOn(iso, movieId, profileId)
     onClose()
   }
 
@@ -130,7 +120,7 @@ export default function NightDialog({
       onClick={(event) => {
         if (event.target === dialogRef.current) onClose()
       }}
-      className="fixed inset-x-0 top-auto bottom-0 m-0 max-h-[85dvh] w-full overscroll-contain overflow-y-auto rounded-t-2xl border-t border-neutral-800 bg-ink-soft p-0 text-white sm:static sm:m-auto sm:h-fit sm:max-h-[80dvh] sm:w-[min(28rem,calc(100vw-2rem))] sm:rounded-lg sm:border"
+      className="dialog-sheet [--dialog-width:28rem] overscroll-contain overflow-y-auto rounded-t-2xl border-t border-neutral-800 bg-ink-soft p-0 text-white sm:rounded-lg sm:border"
     >
       <div className="flex flex-col gap-4 p-5 pb-8">
         <div className="flex items-center justify-between">
