@@ -3,7 +3,7 @@ import { usePlanStore } from '@/store/usePlanStore'
 
 /**
  * Deliberately takes only `movieId`, not `inWatchlist`/`onToggle` from the parent: MovieCard
- * renders up to 30 of these per page over a 5,851-row catalog and is memo()'d specifically to
+ * renders up to 30 of these per page over a 31k-row catalog and is memo()'d specifically to
  * survive that. An inline `() => toggle(movie.id)` handed down as a prop would be a fresh
  * function on every keystroke, defeating the memo. Self-subscribing means MovieCard's props
  * never change -- a watchlist edit re-renders 30 tiny buttons, not 30 full cards.

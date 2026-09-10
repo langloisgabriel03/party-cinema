@@ -1,6 +1,6 @@
 # Party Cinema 🍿
 
-Plan movie nights with friends: everyone browses a 5,851-movie catalog and adds what they want to watch,
+Plan movie nights with friends: everyone browses a 31,000-movie catalog and adds what they want to watch,
 then a calendar schedules a night and (optionally) picks a film from the list. Tapping a film on the
 watchlist offers both ways to answer "when?": pick the date yourself, or **ask everyone when they
 can** — a date poll that lands above the calendar on everyone's dashboard, where each person taps the
@@ -77,13 +77,16 @@ src/
   App.jsx                          router + RequireProfile guard (waits out the loading state)
   lib/
     supabaseClient.js              Supabase client, degrades gracefully if env vars are missing
-    movies.js                      fetchAllMovies() -- paginates past PostgREST's 1000-row cap
+    movies.js                      paginates past PostgREST's 1000-row cap, 6 pages at a time, and
+                                    selects columns explicitly (MOVIE_COLUMNS) -- `select(*)` was 33MB
+                                    a session against 31k rows; plus searchMovieTitles() so search
+                                    doesn't wait for the whole catalog to arrive
     push.js                        web push subscribe/unsubscribe, iOS/standalone detection, SW registration
     scheduling.js                  the one place that books a film onto a date -- attaches to an
                                     existing night, stays silent for a past one, closes its date poll
   store/
     useAppStore.js                 profiles (shared) + currentProfileId (local, the only persisted field)
-    useMovieCatalogStore.js        the 5,851-row catalog + MiniSearch index + moviesById/ensureMovies
+    useMovieCatalogStore.js        the 31k-row catalog + MiniSearch index + moviesById/ensureMovies
                                     (targeted backfill for the dashboard, without fetching the whole catalog)
     usePlanStore.js                shared watchlist_items + nights + date polls, realtime, optimistic writes
   data/

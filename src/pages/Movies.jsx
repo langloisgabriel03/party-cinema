@@ -26,13 +26,23 @@ export default function Movies() {
   const moviesLoading = useMovieCatalogStore((state) => state.moviesLoading)
   const moreMoviesLoading = useMovieCatalogStore((state) => state.moreMoviesLoading)
   const moviesError = useMovieCatalogStore((state) => state.moviesError)
+  const serverSearching = useMovieCatalogStore((state) => state.serverSearching)
   const initMovies = useMovieCatalogStore((state) => state.initMovies)
+  const searchServerSide = useMovieCatalogStore((state) => state.searchServerSide)
   const initPlan = usePlanStore((state) => state.initPlan)
 
   useEffect(() => {
     initMovies()
     initPlan()
   }, [initMovies, initPlan])
+
+  // While the catalog is still streaming, ask Postgres about the query too. Without this,
+  // searching for a film that lives in page 20 of 32 shows nothing until page 20 lands -- which
+  // reads as "it isn't in there", not "it hasn't arrived yet". Skipped once everything is local,
+  // where MiniSearch is both faster and better (cast, director, ranking).
+  useEffect(() => {
+    if (moreMoviesLoading && deferredQuery.trim()) searchServerSide(deferredQuery)
+  }, [deferredQuery, moreMoviesLoading, searchServerSide])
 
   const bounds = useMemo(() => deriveFilterBounds(movies), [movies])
   const presentGenres = useMemo(
@@ -161,7 +171,8 @@ export default function Movies() {
               {moreMoviesLoading ? (
                 <span className="inline-flex items-center gap-1.5 text-neutral-600">
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-neutral-600" />
-                  loading movies&hellip;
+                  {serverSearching ? 'searching the whole catalogue…' : 'loading movies…'}
+                  <span className="text-neutral-700">({movies.length} so far)</span>
                 </span>
               ) : (
                 `${results.length} of ${movies.length} movies`
@@ -175,7 +186,11 @@ export default function Movies() {
             </div>
 
             {results.length === 0 && (
-              <p className="pt-8 text-center text-neutral-500">No movies match these filters.</p>
+              <p className="pt-8 text-center text-neutral-500">
+                {/* Only a claim worth making once everything is in. Mid-load it would be wrong
+                    about a film that simply hasn't arrived yet. */}
+                {moreMoviesLoading ? 'Still loading the catalogue…' : 'No movies match these filters.'}
+              </p>
             )}
 
             {totalPages > 1 && (
