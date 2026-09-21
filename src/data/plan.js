@@ -18,7 +18,7 @@ export function referencedMovieIds(watchlist, nightMovies, datePolls = []) {
 
 /**
  * Groups the flat watchlist_items rows by movie -- "3/3 want this" is the whole point of the
- * feature, so vote count desc is the primary sort, earliest-added breaks ties. `movie` is null
+ * feature, so vote count desc is the primary sort, latest-added breaks ties. `movie` is null
  * until useMovieCatalogStore's ensureMovies() backfills it -- render a poster skeleton for that
  * gap, not a hole.
  */
@@ -37,10 +37,10 @@ export function groupWatchlist(watchlist, moviesById, profiles) {
     const entry = byMovie.get(item.movie_id)
     const profile = profileById.get(item.added_by)
     if (profile) entry.wantedBy.push(profile)
-    if (item.created_at < entry.addedAt) entry.addedAt = item.created_at
+    if (item.created_at > entry.addedAt) entry.addedAt = item.created_at
   }
   return [...byMovie.values()].sort(
-    (a, b) => b.wantedBy.length - a.wantedBy.length || a.addedAt.localeCompare(b.addedAt)
+    (a, b) => b.wantedBy.length - a.wantedBy.length || b.addedAt.localeCompare(a.addedAt)
   )
 }
 
