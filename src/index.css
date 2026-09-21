@@ -87,7 +87,7 @@ dialog::backdrop {
  */
 @media (width < 40rem) {
   .dialog-sheet-tall {
-    height: 75dvh;
+    height: 85dvh;
   }
 }
 
