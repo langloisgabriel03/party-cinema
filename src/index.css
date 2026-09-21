@@ -77,6 +77,18 @@ dialog::backdrop {
   }
 }
 
+/*
+ * For a sheet that scrolls internally and pins a footer (Filters): a DEFINITE height, not just
+ * the max-height above. Such a sheet is a flex column whose body is `flex:1; min-height:0`, and
+ * WebKit resolves that child's contribution to an auto-height container's intrinsic height as
+ * zero -- so on iOS the sheet rendered with no body at all, just the footer. Blink uses the
+ * max-content contribution instead, which is why it only broke on iOS. Declared after the media
+ * query so it also beats the desktop `height: fit-content` (same specificity, later wins).
+ */
+.dialog-sheet-tall {
+  height: 75dvh;
+}
+
 /* Gentle continuous nudge -- draws the eye to a button without being obnoxious like animate-bounce. */
 @keyframes nudge {
   0%,

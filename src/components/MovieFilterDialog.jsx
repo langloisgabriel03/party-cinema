@@ -167,7 +167,7 @@ export default function MovieFilterDialog({
       onClick={(e) => {
         if (e.target === dialogRef.current) onClose()
       }}
-      className="dialog-sheet [--dialog-width:32rem] open:flex open:flex-col overscroll-contain rounded-t-2xl border-t border-neutral-800 bg-ink-soft p-0 text-white sm:rounded-lg sm:border"
+      className="dialog-sheet dialog-sheet-tall [--dialog-width:32rem] open:flex open:flex-col overscroll-contain rounded-t-2xl border-t border-neutral-800 bg-ink-soft p-0 text-white sm:rounded-lg sm:border"
     >
       {/* Scroll lives on this inner div, not on the <dialog> itself: a `position: sticky` footer
           whose scrolling ancestor is the native <dialog> element (top-layer, showModal()) has a
