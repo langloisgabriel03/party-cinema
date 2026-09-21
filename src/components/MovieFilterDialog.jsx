@@ -179,7 +179,7 @@ export default function MovieFilterDialog({
           style that beats the UA's `dialog:not([open]) { display: none }` regardless of
           specificity, so the dialog would render (and eat clicks) even while closed. Scoping it
           to the `open` attribute keeps native show/hide intact. */}
-      <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-5">
+      <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-5 sm:flex-initial">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold">Filters</h2>
           <button
