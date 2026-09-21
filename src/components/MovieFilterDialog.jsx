@@ -167,13 +167,18 @@ export default function MovieFilterDialog({
       onClick={(e) => {
         if (e.target === dialogRef.current) onClose()
       }}
-      className="dialog-sheet [--dialog-width:32rem] flex flex-col overscroll-contain rounded-t-2xl border-t border-neutral-800 bg-ink-soft p-0 text-white sm:rounded-lg sm:border"
+      className="dialog-sheet [--dialog-width:32rem] open:flex open:flex-col overscroll-contain rounded-t-2xl border-t border-neutral-800 bg-ink-soft p-0 text-white sm:rounded-lg sm:border"
     >
       {/* Scroll lives on this inner div, not on the <dialog> itself: a `position: sticky` footer
           whose scrolling ancestor is the native <dialog> element (top-layer, showModal()) has a
           known WebKit/iOS Safari hit-testing bug -- it renders in the right place but stops
           reliably accepting taps once the dialog has scrolled. Keeping the footer as a plain flex
-          sibling outside the scroll container sidesteps that entirely. */}
+          sibling outside the scroll container sidesteps that entirely.
+
+          `open:flex` (not a plain `flex`) matters: an unconditional `display: flex` is an author
+          style that beats the UA's `dialog:not([open]) { display: none }` regardless of
+          specificity, so the dialog would render (and eat clicks) even while closed. Scoping it
+          to the `open` attribute keeps native show/hide intact. */}
       <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-5">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold">Filters</h2>
