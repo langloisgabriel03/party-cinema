@@ -49,56 +49,51 @@ export default function WatchlistCard({ entry }) {
             removeWatchlistMovie(entry.movieId)
           }}
           aria-label={`Remove ${movie?.title ?? 'movie'} from the watchlist`}
-          className="absolute top-1 right-1 flex min-h-9 min-w-9 cursor-pointer items-center justify-center rounded-full bg-black/60 text-sm font-bold text-neutral-200 backdrop-blur-sm hover:bg-black/80"
+          className="absolute top-1 right-1 flex size-7 cursor-pointer items-center justify-center rounded-full bg-black/60 text-xs sm:size-9 sm:text-sm font-bold text-neutral-200 backdrop-blur-sm hover:bg-black/80"
         >
           ✕
         </button>
-        {movie && <TrailerLink title={movie.title} year={movie.year} />}
-        {movie && <MagnetLink title={movie.title} year={movie.year} />}
+        {movie && <TrailerLink title={movie.title} year={movie.year} compact />}
+        {movie && <MagnetLink title={movie.title} year={movie.year} compact />}
       </div>
-      <div className="flex flex-col gap-1.5 p-2 flex-1">
-        <p className="line-clamp-2 text-sm leading-tight font-medium text-white">
+      <div className="flex flex-col gap-1.5 p-1.5 flex-1 sm:p-2">
+        <p className="line-clamp-2 text-xs leading-tight sm:text-sm font-medium text-white">
           {movie?.title ?? 'Loading…'}
         </p>
 
         {movie && (
           <div className="flex flex-col gap-0.5">
             <div className="flex items-baseline gap-1.5">
-              <span className={`text-sm font-bold ${scoreColor(movie.tomatometer)}`}>
+              <span className={`text-xs font-bold sm:text-sm ${scoreColor(movie.tomatometer)}`}>
                 🍅 {movie.tomatometer != null ? `${movie.tomatometer}%` : '—'}
               </span>
               {movie.critic_review_count > 0 && (
-                <span className="text-xs text-neutral-500">{formatCount(movie.critic_review_count)}</span>
+                <span className="hidden text-xs text-neutral-500 sm:inline">{formatCount(movie.critic_review_count)}</span>
               )}
             </div>
             <div className="flex items-baseline gap-1.5">
-              <span className={`text-sm font-bold ${scoreColor(movie.audience_score)}`}>
+              <span className={`text-xs font-bold sm:text-sm ${scoreColor(movie.audience_score)}`}>
                 🍿 {movie.audience_score != null ? `${movie.audience_score}%` : '—'}
               </span>
               {movie.audience_rating_count > 0 && (
-                <span className="text-xs text-neutral-500">{formatCount(movie.audience_rating_count)}</span>
+                <span className="hidden text-xs text-neutral-500 sm:inline">{formatCount(movie.audience_rating_count)}</span>
               )}
             </div>
           </div>
         )}
 
         <div className="flex items-center mt-auto">
-          <div className="flex -space-x-2.5">
+          <div className="flex -space-x-1.5 sm:-space-x-2.5">
             {wantedBy.map((profile) => (
               <img
                 key={profile.id}
                 src={avatarSrc(profile.avatar)}
                 alt=""
                 title={profile.name}
-                className="size-10 rounded-full border-2 border-ink-soft object-cover"
+                className="size-6 rounded-full border-2 border-ink-soft object-cover sm:size-10"
               />
             ))}
           </div>
-          {wantedBy.length > 0 && (
-            <span className="pl-2 text-xs text-neutral-500">
-              {wantedBy.length} want{wantedBy.length === 1 ? 's' : ''} this
-            </span>
-          )}
         </div>
       </div>
     </div>

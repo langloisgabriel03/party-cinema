@@ -9,7 +9,7 @@ const YOUTUBE_ICON_PATH =
  * direct link for the catalog's mainstream titles, without maintaining a second data source (or
  * going stale the way a saved video id would if it's ever taken down).
  */
-export default function TrailerLink({ title, year }) {
+export default function TrailerLink({ title, year, compact = false }) {
   const query = new URLSearchParams({ search_query: year ? `${title} ${year}` : title })
 
   return (
@@ -20,9 +20,9 @@ export default function TrailerLink({ title, year }) {
       aria-label={`Search YouTube for the ${title} trailer`}
       title="Search for trailer"
       onClick={(event) => event.stopPropagation()}
-      className="absolute bottom-1 right-1 flex size-9 items-center justify-center rounded-full bg-black/60 text-red-500 backdrop-blur-sm hover:bg-black/80"
+      className={`absolute bottom-1 right-1 flex ${compact ? 'size-7 sm:size-9' : 'size-9'} items-center justify-center rounded-full bg-black/60 text-red-500 backdrop-blur-sm hover:bg-black/80`}
     >
-      <svg viewBox="0 0 24 24" className="size-5" fill="currentColor" aria-hidden="true">
+      <svg viewBox="0 0 24 24" className={compact ? 'size-4 sm:size-5' : 'size-5'} fill="currentColor" aria-hidden="true">
         <path d={YOUTUBE_ICON_PATH} />
       </svg>
     </a>

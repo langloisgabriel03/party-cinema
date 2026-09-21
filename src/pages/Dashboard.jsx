@@ -272,7 +272,7 @@ export default function Dashboard() {
                       : 'Nobody’s added a movie yet — browse the catalog and tap + on anything you want to watch.'}
                   </p>
                 ) : (
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
+                  <div className="grid grid-cols-3 gap-2 sm:gap-3 md:grid-cols-4 xl:grid-cols-5">
                     {entries.map((entry) => (
                       <WatchlistCard key={entry.movieId} entry={entry} />
                     ))}
