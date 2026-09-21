@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 
 import CatalogSearchPicker from '@/components/CatalogSearchPicker'
 import NightRsvp from '@/components/NightRsvp'
+import { isAdmin } from '@/data/avatars'
 import { isPastDate } from '@/data/dates'
 import { scheduleMovieOn } from '@/lib/scheduling'
-import { useAppStore } from '@/store/useAppStore'
+import { useAppStore, useCurrentProfile } from '@/store/useAppStore'
 import { usePlanStore } from '@/store/usePlanStore'
 
-function NightRow({ night, movieIds, moviesById, profileId, watchlistEntries, onClose }) {
+function NightRow({ night, isPast, movieIds, moviesById, profileId, watchlistEntries, onClose }) {
+  const admin = isAdmin(useCurrentProfile())
   const deleteNight = usePlanStore((state) => state.deleteNight)
   const addMovieToNight = usePlanStore((state) => state.addMovieToNight)
   const removeMovieFromNight = usePlanStore((state) => state.removeMovieFromNight)
@@ -15,15 +17,19 @@ function NightRow({ night, movieIds, moviesById, profileId, watchlistEntries, on
 
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-neutral-800 p-3">
-      <div className="flex items-center justify-end">
-        <button
-          type="button"
-          onClick={() => deleteNight(night.id)}
-          className="cursor-pointer text-xs text-red-400 hover:text-red-300"
-        >
-          Cancel night
-        </button>
-      </div>
+      {/* A past night is history (it's what the Watched shelf is built from), so wiping one is
+          admin-only; an upcoming one can still be called off by anyone. */}
+      {(!isPast || admin) && (
+        <div className="flex items-center justify-end">
+          <button
+            type="button"
+            onClick={() => deleteNight(night.id)}
+            className="cursor-pointer text-xs text-red-400 hover:text-red-300"
+          >
+            {isPast ? 'Delete night' : 'Cancel night'}
+          </button>
+        </div>
+      )}
 
       {movieIds.length > 0 && (
         <div className="flex flex-wrap gap-2">
@@ -53,7 +59,7 @@ function NightRow({ night, movieIds, moviesById, profileId, watchlistEntries, on
       )}
 
       <div className="border-t border-neutral-800 pt-3">
-        <NightRsvp nightId={night.id} />
+        <NightRsvp nightId={night.id} isPast={isPast} />
       </div>
 
       <button
@@ -145,6 +151,7 @@ export default function NightDialog({
           <NightRow
             key={night.id}
             night={night}
+            isPast={isPast}
             movieIds={nightMoviesByNight.get(night.id) ?? []}
             moviesById={moviesById}
             profileId={profileId}

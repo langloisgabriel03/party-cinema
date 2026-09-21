@@ -1,13 +1,18 @@
-import { avatarSrc } from '@/data/avatars'
-import { useAppStore } from '@/store/useAppStore'
+import { avatarSrc, isAdmin } from '@/data/avatars'
+import { useAppStore, useCurrentProfile } from '@/store/useAppStore'
 import { usePlanStore } from '@/store/usePlanStore'
 
 /**
  * "Are you coming?" for one night. Three states, and the third is the point: no row at all means
  * you haven't answered, which is what makes "still to reply" visible rather than silently
  * lumping undecided people in with either answer.
+ *
+ * On a past night the same rows record who was actually there (they feed the Watched shelf's
+ * avatars), so the wording turns past tense, and the admin gets a picker to tick anyone in --
+ * a night logged after the fact usually has nobody's answer on it.
  */
-export default function NightRsvp({ nightId }) {
+export default function NightRsvp({ nightId, isPast = false }) {
+  const admin = isAdmin(useCurrentProfile())
   const profileId = useAppStore((state) => state.currentProfileId)
   const profiles = useAppStore((state) => state.profiles)
   const rsvps = usePlanStore((state) => state.rsvpsByNight.get(nightId) ?? EMPTY)
@@ -22,6 +27,9 @@ export default function NightRsvp({ nightId }) {
 
   // Tapping the answer you already gave clears it -- the only way back to "undecided".
   const choose = (value) => setRsvp(nightId, profileId, mine?.going === value ? null : value)
+  // Admin picker: tapping someone marks them as there, tapping again clears them.
+  const toggleAttendee = (id) =>
+    setRsvp(nightId, id, rsvps.find((r) => r.profile_id === id)?.going === true ? null : true)
 
   return (
     <div className="flex flex-col gap-2">
@@ -29,24 +37,62 @@ export default function NightRsvp({ nightId }) {
         <Choice
           active={mine?.going === true}
           onClick={() => choose(true)}
-          label={'✓ I’m in'}
+          label={isPast ? '✓ I was in' : '✓ I’m in'}
           activeClass="bg-green-600 text-white"
         />
         <Choice
           active={mine?.going === false}
           onClick={() => choose(false)}
-          label={'✕ Can’t make it'}
+          label={isPast ? '✕ Couldn’t make it' : '✕ Can’t make it'}
           activeClass="bg-red-600 text-white"
         />
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-        {going.length > 0 && <Row tint="ring-green-500" label={`${going.length} coming`} people={going} />}
-        {out.length > 0 && <Row tint="ring-red-500/60" label={`${out.length} out`} people={out} dim />}
-        {pending.length > 0 && (
-          <Row tint="ring-neutral-700" label={`${pending.length} no reply`} people={pending} dim />
-        )}
-      </div>
+      {isPast && admin ? (
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs text-neutral-500">Who was there? Tap to toggle.</span>
+          <div className="flex flex-wrap gap-2">
+            {profiles.map((p) => {
+              const there = going.includes(p)
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => toggleAttendee(p.id)}
+                  aria-pressed={there}
+                  title={p.name}
+                  className="flex w-12 cursor-pointer flex-col items-center gap-1"
+                >
+                  <img
+                    src={avatarSrc(p.avatar)}
+                    alt=""
+                    className={`size-9 rounded-full object-cover ring-2 transition ${
+                      there ? 'ring-green-500' : 'opacity-40 ring-neutral-700 grayscale'
+                    }`}
+                  />
+                  <span
+                    className={`w-full truncate text-center text-[10px] ${there ? 'text-white' : 'text-neutral-500'}`}
+                  >
+                    {p.name}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+          {going.length > 0 && (
+            <Row tint="ring-green-500" label={`${going.length} ${isPast ? 'there' : 'coming'}`} people={going} />
+          )}
+          {out.length > 0 && (
+            <Row tint="ring-red-500/60" label={`${out.length} ${isPast ? 'missed it' : 'out'}`} people={out} dim />
+          )}
+          {pending.length > 0 && (
+            <Row tint="ring-neutral-700" label={`${pending.length} no reply`} people={pending} dim />
+          )}
+        </div>
+      )}
     </div>
   )
 }
