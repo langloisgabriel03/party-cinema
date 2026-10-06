@@ -95,9 +95,9 @@ function bounds(movies, field) {
   return { min, max }
 }
 
-/** Actual data bounds -- used for slider ranges and labels. No year bounds: the Year filter picks
- * one exact year rather than a range, so it needs a list of years, not min/max -- see the note by
- * the year check in filterMovies(). */
+/** Actual data bounds -- used for slider ranges and labels. No year bounds: the Year range is
+ * picked from a list of the years actually loaded, not from min/max -- see the note by the year
+ * checks in filterMovies(). */
 export function deriveFilterBounds(movies) {
   const runtime = bounds(movies, 'runtime_minutes')
   const tomatometer = bounds(movies, 'tomatometer')
@@ -147,7 +147,8 @@ export function createDefaultFilters() {
     genres: [],
     onlyFranchise: false,
     franchises: [],
-    year: null,
+    yearMin: null,
+    yearMax: null,
     runtimeMin: null,
     runtimeMax: null,
     tomatometerMin: null,
@@ -161,6 +162,13 @@ export function createDefaultFilters() {
   }
 }
 
+/** "1990 – 2005", or an open-ended "from"/"up to" when only one end is set. */
+function yearLabel({ yearMin, yearMax }) {
+  if (yearMin != null && yearMax != null)
+    return yearMin === yearMax ? `Year ${yearMin}` : `Year ${yearMin} – ${yearMax}`
+  return yearMin != null ? `Year ${yearMin}+` : `Year up to ${yearMax}`
+}
+
 /**
  * Active filters as removable chips: `clear` is a plain patch to merge into filter state, not a
  * closure, so this stays a pure function -- also doubles as the "Filters" button's badge count.
@@ -171,7 +179,8 @@ export function describeActiveFilters(filters) {
   if (filters.genres.length) chips.push({ key: 'genres', label: `Genre (${filters.genres.length})`, clear: { genres: [] } })
   if (filters.onlyFranchise || filters.franchises.length)
     chips.push({ key: 'franchise', label: 'Franchise', clear: { onlyFranchise: false, franchises: [] } })
-  if (filters.year != null) chips.push({ key: 'year', label: `Year ${filters.year}`, clear: { year: null } })
+  if (filters.yearMin != null || filters.yearMax != null)
+    chips.push({ key: 'year', label: yearLabel(filters), clear: { yearMin: null, yearMax: null } })
   if (filters.runtimeMin != null || filters.runtimeMax != null)
     chips.push({ key: 'runtime', label: 'Runtime', clear: { runtimeMin: null, runtimeMax: null } })
   if (filters.tomatometerMin != null || filters.tomatometerMax != null)
@@ -200,11 +209,13 @@ export function filterMovies(movies, filters, matchIds) {
     if (filters.genres.length && !movie.genres.some((g) => filters.genres.includes(g))) return false
     if (filters.onlyFranchise && !movie.franchise) return false
     if (filters.franchises.length && !filters.franchises.includes(movie.franchise)) return false
-    // One exact year, not a range. A range slider fought progressive loading: its bounds widen
-    // in steps as more pages stream in, racing the filter's own synced state. An equality check
-    // against a year picked from the years actually loaded has no bounds to go stale -- a later
-    // page just adds more matches for the year already chosen.
-    if (filters.year != null && movie.year !== filters.year) return false
+    // A year range, but picked from dropdowns rather than the slider this filter used to be. The
+    // slider is what fought progressive loading: its endpoints came from the loaded data's
+    // min/max, which widen in steps as more pages stream in, dragging the synced thumb values
+    // with them. Two explicitly chosen years have nothing to go stale -- a later page carrying
+    // older films just adds matches inside the range already chosen.
+    if (filters.yearMin != null && (movie.year ?? -Infinity) < filters.yearMin) return false
+    if (filters.yearMax != null && (movie.year ?? Infinity) > filters.yearMax) return false
     if (filters.runtimeMin != null && (movie.runtime_minutes ?? -Infinity) < filters.runtimeMin) return false
     if (filters.runtimeMax != null && (movie.runtime_minutes ?? Infinity) > filters.runtimeMax) return false
     if (filters.tomatometerMin != null && (movie.tomatometer ?? -Infinity) < filters.tomatometerMin) return false

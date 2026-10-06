@@ -271,21 +271,48 @@ export default function MovieFilterDialog({
           </div>
         </fieldset>
 
-        <label className="flex flex-col gap-1.5">
-          <span className="text-xs text-neutral-400">Year</span>
-          <select
-            value={filters.year ?? ''}
-            onChange={(e) => patch({ year: e.target.value ? Number(e.target.value) : null })}
-            className="rounded border border-neutral-700 bg-ink-raised px-2 py-2 text-sm text-white outline-none focus:border-neutral-400"
-          >
-            <option value="">Any year</option>
-            {distinctYears.map((year) => (
-              <option key={year} value={year}>
-                {year}
-              </option>
-            ))}
-          </select>
-        </label>
+        <fieldset className="flex flex-col gap-2 border-0 p-0">
+          <legend className="mb-1 text-xs text-neutral-400">Year</legend>
+          <div className="flex items-center gap-2">
+            <select
+              value={filters.yearMin ?? ''}
+              aria-label="From year"
+              // Dragging one end past the other would select nothing, so carry the other end
+              // with it -- the same clamping the score sliders do.
+              onChange={(e) => {
+                const year = e.target.value ? Number(e.target.value) : null
+                const pastMax = year != null && filters.yearMax != null && year > filters.yearMax
+                patch({ yearMin: year, ...(pastMax && { yearMax: year }) })
+              }}
+              className="min-w-0 flex-1 rounded border border-neutral-700 bg-ink-raised px-2 py-2 text-sm text-white outline-none focus:border-neutral-400"
+            >
+              <option value="">Any</option>
+              {distinctYears.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </select>
+            <span className="text-sm text-neutral-500">–</span>
+            <select
+              value={filters.yearMax ?? ''}
+              aria-label="To year"
+              onChange={(e) => {
+                const year = e.target.value ? Number(e.target.value) : null
+                const beforeMin = year != null && filters.yearMin != null && year < filters.yearMin
+                patch({ yearMax: year, ...(beforeMin && { yearMin: year }) })
+              }}
+              className="min-w-0 flex-1 rounded border border-neutral-700 bg-ink-raised px-2 py-2 text-sm text-white outline-none focus:border-neutral-400"
+            >
+              <option value="">Any</option>
+              {distinctYears.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </select>
+          </div>
+        </fieldset>
 
         <RangeSlider
           label="Tomatometer"

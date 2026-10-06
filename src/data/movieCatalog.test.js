@@ -96,21 +96,36 @@ describe('year filter', () => {
     expect(getDistinctYears(movies)).toEqual([2024, 1999])
   })
 
-  it('keeps only movies from the chosen year', () => {
-    const filters = { ...createDefaultFilters(), year: 1999 }
-    expect(filterMovies(movies, filters, null).map((m) => m.id)).toEqual([1, 3])
+  const withYears = (yearMin, yearMax) => ({ ...createDefaultFilters(), yearMin, yearMax })
+  const idsFor = (yearMin, yearMax) =>
+    filterMovies(movies, withYears(yearMin, yearMax), null).map((m) => m.id)
+
+  it('keeps only movies inside the range, both ends inclusive', () => {
+    expect(idsFor(1999, 2024)).toEqual([1, 2, 3])
+    expect(idsFor(1999, 1999)).toEqual([1, 3])
   })
 
-  it('keeps every year when none is chosen', () => {
+  it('treats a single open end as open-ended', () => {
+    expect(idsFor(2000, null)).toEqual([2])
+    expect(idsFor(null, 1999)).toEqual([1, 3])
+  })
+
+  it('drops movies with no year once either end is set', () => {
+    expect(idsFor(1900, null)).not.toContain(4)
+    expect(idsFor(null, 2100)).not.toContain(4)
+  })
+
+  it('keeps every year when neither end is set', () => {
     expect(filterMovies(movies, createDefaultFilters(), null)).toHaveLength(4)
   })
 
-  it('is a removable chip whose clear patch resets it', () => {
-    const chip = describeActiveFilters({ ...createDefaultFilters(), year: 1999 }).find(
-      (c) => c.key === 'year'
-    )
-    expect(chip.label).toBe('Year 1999')
-    expect(chip.clear).toEqual({ year: null })
+  it('is a removable chip labelled by the range it describes', () => {
+    const chipFor = (min, max) => describeActiveFilters(withYears(min, max)).find((c) => c.key === 'year')
+    expect(chipFor(1990, 2005).label).toBe('Year 1990 – 2005')
+    expect(chipFor(1999, 1999).label).toBe('Year 1999')
+    expect(chipFor(1990, null).label).toBe('Year 1990+')
+    expect(chipFor(null, 2005).label).toBe('Year up to 2005')
+    expect(chipFor(1990, 2005).clear).toEqual({ yearMin: null, yearMax: null })
     expect(describeActiveFilters(createDefaultFilters())).toEqual([])
   })
 })
