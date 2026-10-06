@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
-import { compareBy, parseSearchQuery, resolveSearchMatches } from './movieCatalog'
+import {
+  compareBy,
+  createDefaultFilters,
+  describeActiveFilters,
+  filterMovies,
+  getDistinctYears,
+  parseSearchQuery,
+  resolveSearchMatches,
+} from './movieCatalog'
 
 describe('parseSearchQuery', () => {
   const cases = [
@@ -73,6 +81,37 @@ describe('resolveSearchMatches', () => {
   it('returns null for an empty query, never an empty Set', () => {
     expect(resolveSearchMatches('', movies, fakeIndex(movies))).toBe(null)
     expect(resolveSearchMatches('   ', movies, fakeIndex(movies))).toBe(null)
+  })
+})
+
+describe('year filter', () => {
+  const movies = [
+    { id: 1, title: 'A', year: 1999 },
+    { id: 2, title: 'B', year: 2024 },
+    { id: 3, title: 'C', year: 1999 },
+    { id: 4, title: 'D', year: null },
+  ]
+
+  it('lists the distinct years present, newest first', () => {
+    expect(getDistinctYears(movies)).toEqual([2024, 1999])
+  })
+
+  it('keeps only movies from the chosen year', () => {
+    const filters = { ...createDefaultFilters(), year: 1999 }
+    expect(filterMovies(movies, filters, null).map((m) => m.id)).toEqual([1, 3])
+  })
+
+  it('keeps every year when none is chosen', () => {
+    expect(filterMovies(movies, createDefaultFilters(), null)).toHaveLength(4)
+  })
+
+  it('is a removable chip whose clear patch resets it', () => {
+    const chip = describeActiveFilters({ ...createDefaultFilters(), year: 1999 }).find(
+      (c) => c.key === 'year'
+    )
+    expect(chip.label).toBe('Year 1999')
+    expect(chip.clear).toEqual({ year: null })
+    expect(describeActiveFilters(createDefaultFilters())).toEqual([])
   })
 })
 

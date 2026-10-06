@@ -14,6 +14,7 @@ import {
   describeActiveFilters,
   filterMovies,
   getDistinctFranchises,
+  getDistinctYears,
   getPresentGenres,
   parseSearchQuery,
   resolveSearchMatches,
@@ -52,6 +53,7 @@ export default function Movies() {
     [movies]
   )
   const distinctFranchises = useMemo(() => getDistinctFranchises(movies), [movies])
+  const distinctYears = useMemo(() => getDistinctYears(movies), [movies])
 
   const [rawQuery, setRawQuery] = useState('')
   const deferredQuery = useDeferredValue(rawQuery)
@@ -250,6 +252,7 @@ export default function Movies() {
         bounds={bounds}
         presentGenres={presentGenres}
         distinctFranchises={distinctFranchises}
+        distinctYears={distinctYears}
         onClearAll={() => setFilters(createDefaultFilters())}
       />
 

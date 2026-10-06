@@ -137,6 +137,7 @@ export default function MovieFilterDialog({
   bounds,
   presentGenres,
   distinctFranchises,
+  distinctYears,
   onClearAll,
 }) {
   const dialogRef = useRef(null)
@@ -269,6 +270,22 @@ export default function MovieFilterDialog({
             ))}
           </div>
         </fieldset>
+
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs text-neutral-400">Year</span>
+          <select
+            value={filters.year ?? ''}
+            onChange={(e) => patch({ year: e.target.value ? Number(e.target.value) : null })}
+            className="rounded border border-neutral-700 bg-ink-raised px-2 py-2 text-sm text-white outline-none focus:border-neutral-400"
+          >
+            <option value="">Any year</option>
+            {distinctYears.map((year) => (
+              <option key={year} value={year}>
+                {year}
+              </option>
+            ))}
+          </select>
+        </label>
 
         <RangeSlider
           label="Tomatometer"
