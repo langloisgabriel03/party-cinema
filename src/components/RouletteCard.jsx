@@ -1,13 +1,13 @@
-import { avatarSrc, isAdmin } from '@/data/avatars'
+import { avatarSrc } from '@/data/avatars'
 import { scoreColor } from '@/data/movieCatalog'
-import { useAppStore, useCurrentProfile } from '@/store/useAppStore'
+import { useAppStore, useIsAdmin } from '@/store/useAppStore'
 import { usePlanStore } from '@/store/usePlanStore'
 
 /** `entry` is one grouped roulette entry from groupWatchlist(): { movieId, movie, wantedBy, addedAt }. */
 export default function RouletteCard({ entry }) {
   const { movie, wantedBy } = entry
   const profileId = useAppStore((state) => state.currentProfileId)
-  const admin = isAdmin(useCurrentProfile())
+  const admin = useIsAdmin()
   const removeFromRoulette = usePlanStore((state) => state.removeFromRoulette)
 
   // Only your own pick is yours to pull -- everyone has a limited number of slots, so removing

@@ -2,14 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 
 import CatalogSearchPicker from '@/components/CatalogSearchPicker'
 import NightRsvp from '@/components/NightRsvp'
-import { isAdmin } from '@/data/avatars'
 import { isPastDate } from '@/data/dates'
 import { scheduleMovieOn } from '@/lib/scheduling'
-import { useAppStore, useCurrentProfile } from '@/store/useAppStore'
+import { useAppStore, useIsAdmin } from '@/store/useAppStore'
 import { usePlanStore } from '@/store/usePlanStore'
 
 function NightRow({ night, isPast, movieIds, moviesById, profileId, watchlistEntries, onClose }) {
-  const admin = isAdmin(useCurrentProfile())
+  const admin = useIsAdmin()
   const deleteNight = usePlanStore((state) => state.deleteNight)
   const addMovieToNight = usePlanStore((state) => state.addMovieToNight)
   const removeMovieFromNight = usePlanStore((state) => state.removeMovieFromNight)
@@ -44,14 +43,19 @@ function NightRow({ night, isPast, movieIds, moviesById, profileId, watchlistEnt
                     {movie?.title ?? '…'}
                   </div>
                 )}
-                <button
-                  type="button"
-                  onClick={() => removeMovieFromNight(night.id, movieId)}
-                  aria-label={`Remove ${movie?.title ?? 'film'}`}
-                  className="absolute -top-1.5 -right-1.5 flex size-5 cursor-pointer items-center justify-center rounded-full bg-black/80 text-xs text-white hover:bg-red-500"
-                >
-                  ✕
-                </button>
+                {/* Taking a film off a night is admin-only: it's one tap next to the poster, and
+                    an accidental one silently rewrites what the group is watching (and, for a
+                    past night, the Watched shelf built from it). */}
+                {admin && (
+                  <button
+                    type="button"
+                    onClick={() => removeMovieFromNight(night.id, movieId)}
+                    aria-label={`Remove ${movie?.title ?? 'film'}`}
+                    className="absolute -top-1.5 -right-1.5 flex size-5 cursor-pointer items-center justify-center rounded-full bg-black/80 text-xs text-white hover:bg-red-500"
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
             )
           })}

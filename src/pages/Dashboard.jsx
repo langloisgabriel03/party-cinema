@@ -10,7 +10,7 @@ import PushPrompt from '@/components/PushPrompt'
 import UpcomingNights from '@/components/UpcomingNights'
 import WatchedMovies from '@/components/WatchedMovies'
 import WatchlistCard from '@/components/WatchlistCard'
-import { avatarSrc, isAdmin } from '@/data/avatars'
+import { avatarSrc } from '@/data/avatars'
 import { formatNightDate, todayISO } from '@/data/dates'
 import {
   groupWatchlist,
@@ -22,7 +22,7 @@ import {
   watchedEntries,
 } from '@/data/plan'
 import { syncSubscription } from '@/lib/push'
-import { useAppStore, useCurrentProfile } from '@/store/useAppStore'
+import { useAppStore, useCurrentProfile, useIsAdmin } from '@/store/useAppStore'
 import { useMovieCatalogStore } from '@/store/useMovieCatalogStore'
 import { usePlanStore } from '@/store/usePlanStore'
 
@@ -31,6 +31,7 @@ const WATCHED_PREVIEW_COUNT = 8
 
 export default function Dashboard() {
   const profile = useCurrentProfile()
+  const admin = useIsAdmin()
   const signOut = useAppStore((state) => state.signOut)
   const profiles = useAppStore((state) => state.profiles)
 
@@ -333,7 +334,7 @@ export default function Dashboard() {
           }}
           // Read from the live list so the ticked tile updates the moment a save lands.
           profile={profiles.find((p) => p.id === (editTargetId ?? profile.id)) ?? profile}
-          switchable={isAdmin(profile) ? profiles : null}
+          switchable={admin ? profiles : null}
           onSwitch={(p) => setEditTargetId(p.id)}
         />
       )}

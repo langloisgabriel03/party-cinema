@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react'
 
 import AvailabilityDialog from '@/components/AvailabilityDialog'
-import { avatarSrc, isAdmin } from '@/data/avatars'
+import { avatarSrc } from '@/data/avatars'
 import { formatNightDate, nextDates } from '@/data/dates'
 import { summarizePoll } from '@/data/plan'
-import { useAppStore, useCurrentProfile } from '@/store/useAppStore'
+import { useAppStore, useIsAdmin } from '@/store/useAppStore'
 import { usePlanStore } from '@/store/usePlanStore'
 
 // Must match AvailabilityDialog's window, or the card would advertise a best day the dialog no
@@ -18,7 +18,7 @@ const NO_ROWS = []
 function PollCard({ poll, onOpen }) {
   const profiles = useAppStore((state) => state.profiles)
   const profileId = useAppStore((state) => state.currentProfileId)
-  const admin = isAdmin(useCurrentProfile())
+  const admin = useIsAdmin()
   const availabilityByMovie = usePlanStore((state) => state.availabilityByMovie)
   const closeDatePoll = usePlanStore((state) => state.closeDatePoll)
 

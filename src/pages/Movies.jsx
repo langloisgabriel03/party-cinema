@@ -5,7 +5,6 @@ import AddMovieDialog from '@/components/AddMovieDialog'
 import AppHeader from '@/components/AppHeader'
 import MovieCard from '@/components/MovieCard'
 import MovieFilterDialog from '@/components/MovieFilterDialog'
-import { isAdmin } from '@/data/avatars'
 import filterSchema from '@/data/filterSchema.json'
 import {
   compareBy,
@@ -19,7 +18,7 @@ import {
   parseSearchQuery,
   resolveSearchMatches,
 } from '@/data/movieCatalog'
-import { useCurrentProfile } from '@/store/useAppStore'
+import { useIsAdmin } from '@/store/useAppStore'
 import { getMovieSearchIndex, useMovieCatalogStore } from '@/store/useMovieCatalogStore'
 import { usePlanStore } from '@/store/usePlanStore'
 
@@ -35,7 +34,7 @@ export default function Movies() {
   const searchServerSide = useMovieCatalogStore((state) => state.searchServerSide)
   const removeMovie = useMovieCatalogStore((state) => state.removeMovie)
   const initPlan = usePlanStore((state) => state.initPlan)
-  const admin = isAdmin(useCurrentProfile())
+  const admin = useIsAdmin()
 
   useEffect(() => {
     initMovies()

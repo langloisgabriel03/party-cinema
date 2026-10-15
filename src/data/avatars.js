@@ -35,6 +35,17 @@ export function isAdmin(profile) {
 }
 
 /**
+ * Asked for once per browser before the admin profile can be entered, then remembered (see
+ * useAppStore's `adminUnlocked`).
+ *
+ * A speed bump, not a secret: it ships in the JS bundle like everything else here, so anyone who
+ * opens devtools can read it or set the flag by hand. It stops the other four people tapping
+ * "gaybes" and deleting a night by accident -- it does not protect the data, which still has no
+ * auth in front of it at all (see the note above, and plan_schema.sql).
+ */
+export const ADMIN_CODE = '14305'
+
+/**
  * Personal photos, discovered at BUILD time from src/assets/photos/ -- dropping a new file in
  * that folder is the whole job, no list to keep in sync here. They live in src/ rather than
  * public/ precisely so this glob can see them (Vite copies public/ verbatim without indexing it),

@@ -2,8 +2,10 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import AddProfileDialog from '@/components/AddProfileDialog'
+import AdminCodeDialog from '@/components/AdminCodeDialog'
 import AppHeader from '@/components/AppHeader'
 import ProfileCard, { AddProfileTile } from '@/components/ProfileCard'
+import { isAdmin } from '@/data/avatars'
 import { useAppStore } from '@/store/useAppStore'
 
 export default function ProfileSelect() {
@@ -12,11 +14,20 @@ export default function ProfileSelect() {
   const loading = useAppStore((state) => state.profilesLoading)
   const error = useAppStore((state) => state.profilesError)
   const selectProfile = useAppStore((state) => state.selectProfile)
+  const adminUnlocked = useAppStore((state) => state.adminUnlocked)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [codeFor, setCodeFor] = useState(null)
 
-  const handleSelect = (profile) => {
+  const enter = (profile) => {
     selectProfile(profile.id)
     navigate('/dashboard')
+  }
+
+  const handleSelect = (profile) => {
+    // Asked once per browser: after that `adminUnlocked` is remembered and this tile behaves
+    // like any other.
+    if (isAdmin(profile) && !adminUnlocked) setCodeFor(profile)
+    else enter(profile)
   }
 
   return (
@@ -53,6 +64,16 @@ export default function ProfileSelect() {
       </main>
 
       <AddProfileDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
+
+      <AdminCodeDialog
+        open={Boolean(codeFor)}
+        onClose={() => setCodeFor(null)}
+        onUnlocked={() => {
+          const profile = codeFor
+          setCodeFor(null)
+          enter(profile)
+        }}
+      />
     </div>
   )
 }

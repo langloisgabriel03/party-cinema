@@ -1,5 +1,5 @@
-import { avatarSrc, isAdmin } from '@/data/avatars'
-import { useAppStore, useCurrentProfile } from '@/store/useAppStore'
+import { avatarSrc } from '@/data/avatars'
+import { useAppStore, useIsAdmin } from '@/store/useAppStore'
 import { usePlanStore } from '@/store/usePlanStore'
 
 /**
@@ -12,7 +12,7 @@ import { usePlanStore } from '@/store/usePlanStore'
  * a night logged after the fact usually has nobody's answer on it.
  */
 export default function NightRsvp({ nightId, isPast = false }) {
-  const admin = isAdmin(useCurrentProfile())
+  const admin = useIsAdmin()
   const profileId = useAppStore((state) => state.currentProfileId)
   const profiles = useAppStore((state) => state.profiles)
   const rsvps = usePlanStore((state) => state.rsvpsByNight.get(nightId) ?? EMPTY)

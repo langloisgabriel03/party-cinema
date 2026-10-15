@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
+import { ADMIN_CODE, isAdmin } from '@/data/avatars'
 import { createResilientChannel } from '@/lib/realtime'
 import { supabase, supabaseConfigured } from '@/lib/supabaseClient'
 
@@ -24,6 +25,9 @@ export const useAppStore = create(
       profilesError: null,
       currentProfileId: null,
       pushPromptDismissed: false,
+      // Persisted: entering the code is a per-browser thing, like currentProfileId. Deliberately
+      // survives signOut -- the point is not to retype it on every switch back.
+      adminUnlocked: false,
 
       // Fetches the shared profile list once and keeps it live via realtime inserts.
       // Guarded so React StrictMode's double-effect in dev doesn't double-subscribe.
@@ -147,6 +151,13 @@ export const useAppStore = create(
 
       selectProfile: (id) => set({ currentProfileId: id }),
 
+      /** True once the right code has been entered -- ProfileSelect gates the admin tile on it. */
+      unlockAdmin: (code) => {
+        if (String(code).trim() !== ADMIN_CODE) return false
+        set({ adminUnlocked: true })
+        return true
+      },
+
       // Back to the "Who's watching?" screen, Netflix-style.
       signOut: () => set({ currentProfileId: null }),
 
@@ -161,6 +172,7 @@ export const useAppStore = create(
       partialize: (state) => ({
         currentProfileId: state.currentProfileId,
         pushPromptDismissed: state.pushPromptDismissed,
+        adminUnlocked: state.adminUnlocked,
       }),
     }
   )
@@ -170,4 +182,16 @@ export const useAppStore = create(
 export const useCurrentProfile = () =>
   useAppStore(
     (state) => state.profiles.find((profile) => profile.id === state.currentProfileId) ?? null
+  )
+
+/**
+ * The admin check every admin-only control uses: being on the admin profile is not enough on its
+ * own, the code has to have been entered in this browser too. Without the second half, a browser
+ * already sitting on that profile from before the code existed would keep every admin control.
+ */
+export const useIsAdmin = () =>
+  useAppStore(
+    (state) =>
+      state.adminUnlocked &&
+      isAdmin(state.profiles.find((profile) => profile.id === state.currentProfileId))
   )
